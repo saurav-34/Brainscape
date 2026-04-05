@@ -128,7 +128,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .bg-swatch.active { border-color: rgba(255,255,255,0.95); box-shadow: 0 0 12px rgba(255,255,255,0.18); }
 
 /* ── SVG element styles ── */
-.node-shape { stroke-width: 2; cursor: move; }
+.node-shape { stroke-width: 2.7; cursor: move; }
 .node-group:hover .node-shape { filter: brightness(1.1) saturate(1.08); }
 .node-label {
   fill: rgba(255,255,255,0.9); font-family: system-ui, -apple-system, sans-serif;
@@ -309,14 +309,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
       <pattern id="dotpat" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="translate(0,0)">
         <circle id="dotpat-circle" cx="0" cy="0" r="0.85" fill="rgba(255,255,255,0.055)"></circle>
       </pattern>
-      <marker id="ah-def" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,10 4,0 8" fill="#ffffff"></polygon>
+      <marker id="ah-def" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
-      <marker id="ah-sel" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,10 4,0 8" fill="#ffffff"></polygon>
+      <marker id="ah-sel" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
-      <marker id="ah-preview" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,10 4,0 8" fill="#ffffff"></polygon>
+      <marker id="ah-preview" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
     </defs>
     <!-- Grid bg (outside viewport so it fills screen) -->
@@ -773,6 +773,22 @@ function loadFromStorage() {
         activeThemeId = d.activeThemeId || activeThemeId;
         if (!currentMap()) activeMapId = maps[0].id;
         try { loadMapData(currentMap()); } catch(e) { console.error("Could not load inner nodes", e); }
+        applyBackgroundTheme(activeThemeId, true);
+        return true;
+      } else if (d.nodes || d.edges) {
+        // Migration for legacy v4 data stored as {nodes, edges, vp}
+        const initialMapId = 'map1';
+        maps = [{
+          id: initialMapId,
+          name: 'Map 1',
+          nodes: d.nodes || [],
+          edges: d.edges || [],
+          vp: d.vp || { x:0, y:0, s:1 }
+        }];
+        mapIdCtr = 2;
+        activeMapId = initialMapId;
+        activeThemeId = d.activeThemeId || activeThemeId;
+        try { loadMapData(maps[0]); } catch(e) { console.error("Migrate error", e); }
         applyBackgroundTheme(activeThemeId, true);
         return true;
       }
@@ -1889,7 +1905,21 @@ document.getElementById('tool-image').addEventListener('click', e => {
 });
 
 document.getElementById('tool-export').addEventListener('click', () => {
-  saveCurrentMap();
+  // Force map state initialization before packaging JSON if maps is empty
+  if (!maps || maps.length === 0) {
+    const defaultMapId = mapUid();
+    maps = [{
+      id: defaultMapId,
+      name: 'Map 1',
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+      vp: { ...vp }
+    }];
+    activeMapId = defaultMapId;
+  } else {
+    saveCurrentMap();
+  }
+
   const exportFormat = {
     type: 'BrainscapeData',
     version: 1,
@@ -1939,7 +1969,12 @@ document.getElementById('tool-import').addEventListener('click', () => {
 
         // 1. New structured format
         if (d && d.type === 'BrainscapeData' && Array.isArray(d.maps)) {
-          loadedMaps = d.maps.length > 0 ? d.maps : [{id: 'map1', name: 'Map 1', nodes: [], edges: []}];
+          if (d.maps.length === 0) {
+            alert("Warning: This file contains zero maps/nodes (empty export). Loading a blank canvas.");
+            loadedMaps = [{id: 'map1', name: 'Map 1', nodes: [], edges: []}];
+          } else {
+            loadedMaps = d.maps;
+          }
           loadedActiveMapId = d.activeMapId || loadedMaps[0].id;
           loadedMapIdCtr = d.mapIdCtr || 1;
           loadedThemeId = d.activeThemeId || loadedThemeId;
@@ -1973,14 +2008,16 @@ document.getElementById('tool-import').addEventListener('click', () => {
            throw new Error("Unrecognized JSON map format structure.");
         }
 
-        // Apply
+        // Apply & Normalize
         maps = loadedMaps;
         activeMapId = loadedActiveMapId;
-        mapIdCtr = loadedMapIdCtr;
+        if (!currentMap()) activeMapId = maps[0].id;
+        
+        mapIdCtr = Math.max(loadedMapIdCtr || 1, maps.length + 1);
         activeThemeId = loadedThemeId;
         applyBackgroundTheme(activeThemeId, true);
 
-        const mapToLoad = currentMap() || maps[0];
+        const mapToLoad = currentMap();
         if (!mapToLoad) {
            throw new Error("Could not initialize map from data.");
         }
@@ -2047,8 +2084,24 @@ if (!loadFromStorage()) {
   addEdge('straight', 0,0,0,0, n1.id,'S', n2.id,'N');
   addEdge('straight', 0,0,0,0, n1.id,'S', n3.id,'N');
   addEdge('curved',   0,0,0,0, n2.id,'S', n4.id,'N');
-  saveTimer = null; localStorage.setItem(LS_KEY, JSON.stringify({nodes,edges,vp}));
+  
+  // Bootstrap map state with welcome nodes
+  const initialMapId = mapUid();
+  maps = [{
+    id: initialMapId,
+    name: 'Map 1',
+    nodes: JSON.parse(JSON.stringify(nodes)),
+    edges: JSON.parse(JSON.stringify(edges)),
+    vp: { ...vp }
+  }];
+  activeMapId = initialMapId;
+
+  saveTimer = null; 
+  localStorage.setItem(LS_KEY, JSON.stringify({ maps, activeMapId, mapIdCtr, activeThemeId }));
 }
+
+// Ensure tabs are rendered at startup once map state exists
+renderTabs();
 
 pushHistory();
 render();
