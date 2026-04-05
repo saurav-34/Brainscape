@@ -128,7 +128,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .bg-swatch.active { border-color: rgba(255,255,255,0.95); box-shadow: 0 0 12px rgba(255,255,255,0.18); }
 
 /* ── SVG element styles ── */
-.node-shape { stroke-width: 2.7; cursor: move; }
+.node-shape { stroke-width: 2.0; cursor: move; }
 .node-group:hover .node-shape { filter: brightness(1.1) saturate(1.08); }
 .node-label {
   fill: rgba(255,255,255,0.9); font-family: system-ui, -apple-system, sans-serif;
@@ -385,8 +385,74 @@ const DEFAULT_SIZE = { rect:[160,80], circle:[100,100], diamond:[120,100], text:
 const MIN_ZOOM = 0.08, MAX_ZOOM = 5, ZOOM_F = 0.11;
 const SNAP_DIST = 18; // screen px for anchor snap
 const LS_KEY = 'brainmap_v4';
-const ANCHOR_NAMES = ['N','E','S','W'];
+const ANCHOR_NAMES = ['N','NE','E','SE','S','SW','W','NW'];
 const NS = 'http://www.w3.org/2000/svg';
+const TOOL_CURSORS = {
+  select:'default', rect:'crosshair', circle:'crosshair', diamond:'crosshair',
+  text:'text', arrow:'crosshair', curve:'crosshair', image:'crosshair'
+};
+
+// ═══════════════════════════════════════════
+// IMAGE STORE  (IndexedDB — keeps base64 out of localStorage & history)
+// ═══════════════════════════════════════════
+const imageCache = new Map(); // imageId → dataUrl  (always in-memory)
+let _imgDB = null;
+
+function _openImageDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('brainmap_images', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('images', { keyPath: 'id' });
+    req.onsuccess  = e => { _imgDB = e.target.result; resolve(); };
+    req.onerror    = () => reject(req.error);
+  });
+}
+
+function _loadAllImages() {
+  if (!_imgDB) return Promise.resolve();
+  return new Promise(resolve => {
+    const req = _imgDB.transaction('images', 'readonly').objectStore('images').getAll();
+    req.onsuccess = () => { for (const r of req.result) imageCache.set(r.id, r.src); resolve(); };
+    req.onerror   = () => resolve();
+  });
+}
+
+function storeImage(imageId, dataUrl) {
+  imageCache.set(imageId, dataUrl);
+  if (!_imgDB) return;
+  _imgDB.transaction('images', 'readwrite').objectStore('images').put({ id: imageId, src: dataUrl });
+}
+
+function deleteImage(imageId) {
+  imageCache.delete(imageId);
+  if (!_imgDB) return;
+  _imgDB.transaction('images', 'readwrite').objectStore('images').delete(imageId);
+}
+
+function generateImageId() {
+  return 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+// Migrate old nodes that still carry a raw base64 src → move to imageCache + IndexedDB
+function migrateImageNodes() {
+  const allMaps = maps.length ? maps : [];
+  for (const m of allMaps) {
+    for (const n of (m.nodes || [])) {
+      if (n.type === 'image' && n.src && !n.imageId) {
+        n.imageId = generateImageId();
+        storeImage(n.imageId, n.src);
+        delete n.src;
+      }
+    }
+  }
+  // also handle currently-loaded nodes array
+  for (const n of nodes) {
+    if (n.type === 'image' && n.src && !n.imageId) {
+      n.imageId = generateImageId();
+      storeImage(n.imageId, n.src);
+      delete n.src;
+    }
+  }
+}
 
 // ═══════════════════════════════════════════
 // STATE
@@ -401,6 +467,8 @@ let activeThemeId = 'midnight';
 let history = [];
 let future  = [];
 let idCtr = 1;
+const _nodeRenderCache = new Map(); // nodeId → hash — skip re-render when unchanged
+const _edgeRenderCache = new Map(); // edgeId → hash
 function uid() { return 'id' + (idCtr++); }
 
 // Multi-map state
@@ -430,6 +498,19 @@ const ix = {
 // COORDINATE UTILS
 // ═══════════════════════════════════════════
 const canvas = document.getElementById('canvas');
+const layerNodesEl = document.getElementById('layer-nodes');
+const layerEdgesEl = document.getElementById('layer-edges');
+const layerOverlayEl = document.getElementById('layer-overlay');
+const vpEl = document.getElementById('vp');
+const dotPatternEl = document.getElementById('dotpat');
+const dotPatternCircleEl = document.getElementById('dotpat-circle');
+const sbToolEl = document.getElementById('sb-tool');
+const sbZoomEl = document.getElementById('sb-zoom');
+const sbSelEl = document.getElementById('sb-sel');
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
 
 function getBackgroundThemeById(themeId) {
   return BACKGROUND_THEMES.find(t => t.id === themeId) || BACKGROUND_THEMES[0];
@@ -439,7 +520,7 @@ function applyBackgroundTheme(themeId, skipSave=false) {
   const theme = getBackgroundThemeById(themeId);
   activeThemeId = theme.id;
   canvas.style.background = theme.canvas;
-  document.getElementById('dotpat-circle')?.setAttribute('fill', theme.dot);
+  dotPatternCircleEl?.setAttribute('fill', theme.dot);
   document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
   document.querySelector(`.bg-swatch[data-theme="${theme.id}"]`)?.classList.add('active');
   if (!skipSave) scheduleSave();
@@ -475,9 +556,13 @@ function nodeAnchors(node) {
   const { x, y, w, h } = node;
   return {
     N: { x: x + w/2, y },
+    NE: { x: x + w,  y },
     E: { x: x + w,   y: y + h/2 },
+    SE: { x: x + w,  y: y + h },
     S: { x: x + w/2, y: y + h },
+    SW: { x,         y: y + h },
     W: { x,           y: y + h/2 },
+    NW: { x,         y },
   };
 }
 
@@ -576,7 +661,7 @@ function borderColorForNode(node) {
 // HISTORY
 // ═══════════════════════════════════════════
 function snapshot() {
-  return { nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)) };
+  return { nodes: deepClone(nodes), edges: deepClone(edges) };
 }
 
 function pushHistory() {
@@ -589,8 +674,10 @@ function applySnapshot(s) {
   nodes = s.nodes; edges = s.edges;
   idCtr = Math.max(idCtr, ...nodes.map(n=>parseInt(n.id.slice(2))+1), ...edges.map(e=>parseInt(e.id.slice(2))+1), 1);
   selection.clear();
-  const ln = document.getElementById('layer-nodes');
-  const le = document.getElementById('layer-edges');
+  _nodeRenderCache.clear();
+  _edgeRenderCache.clear();
+  const ln = layerNodesEl;
+  const le = layerEdgesEl;
   if (ln) ln.innerHTML = '';
   if (le) le.innerHTML = '';
   render();
@@ -614,14 +701,14 @@ function redo() {
 function saveCurrentMap() {
   const m = currentMap();
   if (!m) return;
-  m.nodes = JSON.parse(JSON.stringify(nodes));
-  m.edges = JSON.parse(JSON.stringify(edges));
+  m.nodes = deepClone(nodes);
+  m.edges = deepClone(edges);
   m.vp = { ...vp };
 }
 
 function loadMapData(m) {
-  nodes = JSON.parse(JSON.stringify(m.nodes || []));
-  edges = JSON.parse(JSON.stringify(m.edges || []));
+  nodes = deepClone(m.nodes || []);
+  edges = deepClone(m.edges || []);
   // Ensure text nodes always have a stable default fill.
   for (const n of nodes) {
     if (n.type === 'text' && (!n.fill || n.fill === '#4d7ef7' || n.fill === '#9FAAF3')) n.fill = '#130d21';
@@ -638,8 +725,8 @@ function loadMapData(m) {
   );
   selection.clear();
   
-  const layerNodes = document.getElementById('layer-nodes');
-  const layerEdges = document.getElementById('layer-edges');
+  const layerNodes = layerNodesEl;
+  const layerEdges = layerEdgesEl;
   if (layerNodes) layerNodes.innerHTML = '';
   if (layerEdges) layerEdges.innerHTML = '';
 }
@@ -812,9 +899,15 @@ function loadFromStorage() {
 // ═══════════════════════════════════════════
 
 function renderNode(node) {
-  const layer = document.getElementById('layer-nodes');
+  const layer = layerNodesEl;
   if (!layer) return;
-  let g = document.getElementById('n-' + node.id);
+  // Hash-based dirty check — skip if nothing that affects appearance has changed
+  const _isSel = selection.has(node.id);
+  const _hash = `${node.x},${node.y},${node.w},${node.h},${node.type},${node.fill||''},${node.text||''},${node.fontSize||''},${node.bold?1:0},${node.italic?1:0},${node.imageId||''},${_isSel?1:0}`;
+  const _existingEl = document.getElementById('n-' + node.id);
+  if (_existingEl && _nodeRenderCache.get(node.id) === _hash) return;
+  _nodeRenderCache.set(node.id, _hash);
+  let g = _existingEl;
   if (!g) {
     g = el('g', { id: 'n-'+node.id, class: 'node-group', 'data-id': node.id });
     layer.appendChild(g);
@@ -845,7 +938,7 @@ function renderNode(node) {
     clip.appendChild(el('rect', { x, y, width:w, height:h, rx:8 }));
     defs.appendChild(clip);
     g.appendChild(defs);
-    shape = el('image', { href:node.src, x, y, width:w, height:h,
+    shape = el('image', { href: node.src || imageCache.get(node.imageId) || '', x, y, width:w, height:h,
       preserveAspectRatio:'xMidYMid meet', 'clip-path':'url(#clip-'+node.id+')' });
   }
   g.appendChild(shape);
@@ -924,16 +1017,23 @@ function renderNode(node) {
 }
 
 function renderEdge(edge) {
-  const layer = document.getElementById('layer-edges');
+  const layer = layerEdgesEl;
   if (!layer) return;
-  let g = document.getElementById('e-' + edge.id);
+  // Hash-based dirty check for edges
+  const _isSel = selection.has(edge.id);
+  const _r = resolveEdge(edge);
+  const _hash = `${_r.x1},${_r.y1},${_r.x2},${_r.y2},${edge.cx??''},${edge.cy??''},${edge.type},${edge.color||''},${edge.strokeWidth??''},${_isSel?1:0}`;
+  const _existingEl = document.getElementById('e-' + edge.id);
+  if (_existingEl && _edgeRenderCache.get(edge.id) === _hash) return;
+  _edgeRenderCache.set(edge.id, _hash);
+  let g = _existingEl;
   if (!g) {
     g = el('g', { id:'e-'+edge.id, class:'edge-group', 'data-id':edge.id });
     layer.appendChild(g);
   }
   g.innerHTML = '';
-  const isSel = selection.has(edge.id);
-  const { x1, y1, x2, y2 } = resolveEdge(edge);
+  const isSel = _isSel;
+  const { x1, y1, x2, y2 } = _r;
   const stroke = edge.color || '#ffffff';
   const sw = edge.strokeWidth == null || edge.strokeWidth === 1.5 ? 2.8 : edge.strokeWidth;
   const marker = isSel ? 'url(#ah-sel)' : 'url(#ah-def)';
@@ -968,39 +1068,83 @@ function renderEdge(edge) {
 }
 
 function updateViewport() {
-  document.getElementById('vp').setAttribute('transform', `translate(${vp.x},${vp.y}) scale(${vp.s})`);
+  vpEl?.setAttribute('transform', `translate(${vp.x},${vp.y}) scale(${vp.s})`);
   // Keep grid dots aligned with world grid - snap tile size to screen pixels
   const tileSize = Math.max(8, 24 * vp.s);
   const offX = ((vp.x % tileSize) + tileSize) % tileSize;
   const offY = ((vp.y % tileSize) + tileSize) % tileSize;
-  document.getElementById('dotpat').setAttribute('patternTransform', `translate(${offX},${offY})`);
-  document.getElementById('dotpat').setAttribute('width', tileSize);
-  document.getElementById('dotpat').setAttribute('height', tileSize);
+  if (dotPatternEl) {
+    dotPatternEl.setAttribute('patternTransform', `translate(${offX},${offY})`);
+    dotPatternEl.setAttribute('width', tileSize);
+    dotPatternEl.setAttribute('height', tileSize);
+  }
 }
 
 function updateStatusBar() {
   const names = { select:'Select', rect:'Rectangle', circle:'Circle', diamond:'Diamond', text:'Text', arrow:'Arrow', curve:'Curve', image:'Image' };
-  document.getElementById('sb-tool').textContent = names[activeTool] || activeTool;
-  document.getElementById('sb-zoom').textContent = Math.round(vp.s*100) + '%';
+  if (sbToolEl) sbToolEl.textContent = names[activeTool] || activeTool;
+  if (sbZoomEl) sbZoomEl.textContent = Math.round(vp.s*100) + '%';
   const ss = selection.size;
-  document.getElementById('sb-sel').textContent = ss > 0 ? `${ss} selected` : '';
+  if (sbSelEl) sbSelEl.textContent = ss > 0 ? `${ss} selected` : '';
 }
 
 function render() {
-  // Nodes
-  for (const n of nodes) renderNode(n);
-  const nl = document.getElementById('layer-nodes');
-  for (const c of [...nl.children]) {
-    if (!nodes.find(n => 'n-'+n.id === c.id)) c.remove();
+  // Viewport bounds in world space (computed once, used for culling)
+  const _svgR = svgRect();
+  const _tl = screenToWorld(0, 0);
+  const _br = screenToWorld(_svgR.width, _svgR.height);
+  const _pad = 120 / Math.max(vp.s, 0.01); // world-space padding so nodes pop in before edge
+
+  // Nodes — only re-render if in viewport (hash check inside skips unchanged ones)
+  for (const n of nodes) {
+    if (n.x + n.w >= _tl.x - _pad && n.x <= _br.x + _pad &&
+        n.y + n.h >= _tl.y - _pad && n.y <= _br.y + _pad) {
+      renderNode(n);
+    }
+    // off-screen: leave existing DOM element as-is (browser culls it from paint)
   }
-  // Edges
+  // Remove DOM elements for deleted nodes and clear their cache entries
+  const nl = layerNodesEl;
+  if (nl) {
+    const validNodeIds = new Set(nodes.map(n => 'n-' + n.id));
+    for (const c of [...nl.children]) {
+      if (!validNodeIds.has(c.id)) {
+        c.remove();
+        _nodeRenderCache.delete(c.id.slice(2)); // strip 'n-' prefix
+      }
+    }
+  }
+  // Edges (typically far fewer — always render)
   for (const e of edges) renderEdge(e);
-  const el2 = document.getElementById('layer-edges');
-  for (const c of [...el2.children]) {
-    if (!edges.find(e => 'e-'+e.id === c.id)) c.remove();
+  const el2 = layerEdgesEl;
+  if (el2) {
+    const validEdgeIds = new Set(edges.map(e => 'e-' + e.id));
+    for (const c of [...el2.children]) {
+      if (!validEdgeIds.has(c.id)) {
+        c.remove();
+        _edgeRenderCache.delete(c.id.slice(2));
+      }
+    }
   }
   updateViewport();
   updateStatusBar();
+}
+
+function buildSelectionDragSnapshot() {
+  ix.multiSnap = [];
+  for (const id of selection) {
+    const n = nodes.find(node => node.id === id);
+    if (n) {
+      ix.multiSnap.push({ type:'node', id:n.id, ox:n.x, oy:n.y });
+      continue;
+    }
+    const ed = edges.find(edge => edge.id === id);
+    if (!ed) continue;
+    const r = resolveEdge(ed);
+    ix.multiSnap.push({
+      type:'edge', id:ed.id, ox1:r.x1, oy1:r.y1, ox2:r.x2, oy2:r.y2, ocx:ed.cx, ocy:ed.cy
+    });
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -1030,6 +1174,9 @@ function deleteSelected() {
   for (const id of selection) {
     const ni = nodes.findIndex(n => n.id===id);
     if (ni !== -1) {
+      const _dn = nodes[ni];
+      if (_dn.imageId) deleteImage(_dn.imageId);
+      _nodeRenderCache.delete(id);
       nodes.splice(ni, 1);
       document.getElementById('n-'+id)?.remove();
       // Remove connected edges
@@ -1258,9 +1405,7 @@ function setTool(t) {
   document.querySelectorAll('.tb-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tool-'+t)?.classList.add('active');
   canvas.className = 'tool-' + t;
-  const cursors = { select:'grab', rect:'crosshair', circle:'crosshair', diamond:'crosshair',
-    text:'text', arrow:'crosshair', curve:'crosshair', image:'crosshair' };
-  canvas.style.cursor = cursors[t] || 'default';
+  canvas.style.cursor = t === 'select' ? 'grab' : (TOOL_CURSORS[t] || 'default');
   updateStatusBar();
 }
 
@@ -1344,14 +1489,7 @@ canvas.addEventListener('pointerdown', e => {
       pushHistory();
       ix.mode = 'move-node'; ix.startWX = wp.x; ix.startWY = wp.y;
       ix.wasSelected = wasSelected;
-      ix.multiSnap = [];
-      for (const id of selection) {
-        const n = nodes.find(n=>n.id===id); if(n) ix.multiSnap.push({ type:'node', id:n.id, ox:n.x, oy:n.y });
-        const ed = edges.find(e=>e.id===id); if(ed) {
-          const r = resolveEdge(ed);
-          ix.multiSnap.push({ type:'edge', id:ed.id, ox1:r.x1, oy1:r.y1, ox2:r.x2, oy2:r.y2, ocx:ed.cx, ocy:ed.cy });
-        }
-      }
+      buildSelectionDragSnapshot();
       e.stopPropagation(); return;
     }
 
@@ -1388,14 +1526,7 @@ canvas.addEventListener('pointerdown', e => {
     pushHistory();
     ix.mode = 'move-node'; ix.startWX = wp.x; ix.startWY = wp.y;
     ix.wasSelected = wasSelected;
-    ix.multiSnap = [];
-    for (const id of selection) {
-      const n = nodes.find(n=>n.id===id); if(n) ix.multiSnap.push({ type:'node', id:n.id, ox:n.x, oy:n.y });
-      const ed = edges.find(e=>e.id===id); if(ed) {
-        const r = resolveEdge(ed);
-        ix.multiSnap.push({ type:'edge', id:ed.id, ox1:r.x1, oy1:r.y1, ox2:r.x2, oy2:r.y2, ocx:ed.cx, ocy:ed.cy });
-      }
-    }
+    buildSelectionDragSnapshot();
     e.stopPropagation(); return;
   }
 
@@ -1412,7 +1543,7 @@ canvas.addEventListener('pointerdown', e => {
     } else {
       shp = el('polygon', { class:'rubber-band', points:`${wp.x},${wp.y} ${wp.x},${wp.y} ${wp.x},${wp.y} ${wp.x},${wp.y}` });
     }
-    document.getElementById('layer-overlay').appendChild(shp);
+    layerOverlayEl?.appendChild(shp);
     ix.preview = shp;
     return;
   }
@@ -1440,7 +1571,7 @@ canvas.addEventListener('pointerdown', e => {
 function _startEdgePreview(x1, y1, x2, y2) {
   const p = el('path', { class:'edge-preview', d:`M ${x1},${y1} L ${x2},${y2}`,
     'marker-end':'url(#ah-preview)' });
-  document.getElementById('layer-overlay').appendChild(p);
+  layerOverlayEl?.appendChild(p);
   ix.preview = p;
 }
 
@@ -1556,7 +1687,7 @@ canvas.addEventListener('pointermove', e => {
     if (snap) {
       if (!sr) {
         sr = el('circle', { id:'snap-ring', class:'anchor-snap', r:8 });
-        document.getElementById('layer-overlay').appendChild(sr);
+        layerOverlayEl?.appendChild(sr);
       }
       setAttrs(sr, { cx:snap.wx, cy:snap.wy });
     } else { sr?.remove(); }
@@ -1590,9 +1721,7 @@ canvas.addEventListener('pointerup', e => {
   ix.mode = 'idle';
 
   if (mode === 'pan') {
-    const cursors = { select:'default', rect:'crosshair', circle:'crosshair', diamond:'crosshair',
-      text:'text', arrow:'crosshair', curve:'crosshair', image:'crosshair' };
-    canvas.style.cursor = cursors[activeTool] || 'default';
+    canvas.style.cursor = TOOL_CURSORS[activeTool] || 'default';
     return;
   }
 
@@ -1715,17 +1844,21 @@ canvas.addEventListener('contextmenu', e => {
   if (selection.size > 0) showCtxMenu(e.clientX, e.clientY);
 });
 
+function zoomAtScreenPoint(sx, sy, factor) {
+  const newS = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, vp.s * factor));
+  const af = newS / vp.s;
+  vp.x = sx - (sx - vp.x) * af;
+  vp.y = sy - (sy - vp.y) * af;
+  vp.s = newS;
+  updateViewport();
+  updateStatusBar();
+}
+
 // Scroll: zoom
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const sp = eventToScreen(e);
-  const factor = e.deltaY < 0 ? (1+ZOOM_F) : (1-ZOOM_F);
-  const newS = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, vp.s * factor));
-  const af = newS / vp.s;
-  vp.x = sp.x - (sp.x - vp.x) * af;
-  vp.y = sp.y - (sp.y - vp.y) * af;
-  vp.s = newS;
-  updateViewport(); updateStatusBar();
+  zoomAtScreenPoint(sp.x, sp.y, e.deltaY < 0 ? (1 + ZOOM_F) : (1 - ZOOM_F));
 }, { passive: false });
 
 // ═══════════════════════════════════════════
@@ -1745,7 +1878,7 @@ document.addEventListener('keydown', e => {
   if (e.key==='Escape') {
     ix.preview?.remove(); ix.preview=null;
     document.getElementById('snap-ring')?.remove();
-    const overlay = document.getElementById('layer-overlay');
+    const overlay = layerOverlayEl;
     if (overlay) overlay.innerHTML='';
     ix.mode='idle'; selection.clear(); render();
     return;
@@ -1774,14 +1907,14 @@ document.addEventListener('keydown', e => {
 
   // Zoom shortcuts
   if (e.key==='=' || e.key==='+') {
-    const cx=canvas.clientWidth/2, cy=canvas.clientHeight/2, f=1.2;
-    vp.x=cx-(cx-vp.x)*f; vp.y=cy-(cy-vp.y)*f; vp.s=Math.min(MAX_ZOOM,vp.s*f);
-    updateViewport(); updateStatusBar();
+    const cx = canvas.clientWidth / 2;
+    const cy = canvas.clientHeight / 2;
+    zoomAtScreenPoint(cx, cy, 1.2);
   }
   if (e.key==='-') {
-    const cx=canvas.clientWidth/2, cy=canvas.clientHeight/2, f=1/1.2;
-    vp.x=cx-(cx-vp.x)*f; vp.y=cy-(cy-vp.y)*f; vp.s=Math.max(MIN_ZOOM,vp.s*f);
-    updateViewport(); updateStatusBar();
+    const cx = canvas.clientWidth / 2;
+    const cy = canvas.clientHeight / 2;
+    zoomAtScreenPoint(cx, cy, 1 / 1.2);
   }
   if (e.key==='0' && (e.ctrlKey||e.metaKey)) {
     e.preventDefault(); vp.x=0; vp.y=0; vp.s=1; updateViewport(); updateStatusBar();
@@ -1808,6 +1941,36 @@ function fitView() {
   updateViewport(); updateStatusBar();
 }
 
+function scaleImageToCanvasBounds(width, height, maxW=500, maxH=400) {
+  let w = width;
+  let h = height;
+  if (w > maxW) { h = h * maxW / w; w = maxW; }
+  if (h > maxH) { w = w * maxH / h; h = maxH; }
+  return { w, h };
+}
+
+function placeImageNodeFromDataUrl(dataUrl, center, options = {}) {
+  const { selectNode = false, switchToolToSelect = false } = options;
+  const img = new Image();
+  img.onload = () => {
+    const size = scaleImageToCanvasBounds(img.width, img.height);
+    pushHistory();
+    const imageId = generateImageId();
+    storeImage(imageId, dataUrl);
+    const node = addNode('image', center.x - size.w / 2, center.y - size.h / 2, size.w, size.h, {
+      imageId,
+      fill: 'transparent'
+    });
+    if (selectNode) {
+      selection.clear();
+      selection.add(node.id);
+    }
+    render();
+    if (switchToolToSelect) setTool('select');
+  };
+  img.src = dataUrl;
+}
+
 // ═══════════════════════════════════════════
 // CLIPBOARD PASTE
 // ═══════════════════════════════════════════
@@ -1822,19 +1985,8 @@ document.addEventListener('paste', e => {
       const file = item.getAsFile();
       const reader = new FileReader();
       reader.onload = ev => {
-        const img = new Image();
-        img.onload = () => {
-          let iw=img.width, ih=img.height;
-          const maxW=500, maxH=400;
-          if (iw>maxW) { ih=ih*maxW/iw; iw=maxW; }
-          if (ih>maxH) { iw=iw*maxH/ih; ih=maxH; }
-          pushHistory();
-          const c = viewCenter();
-          const node = addNode('image', c.x-iw/2, c.y-ih/2, iw, ih, { src:ev.target.result, fill:'transparent' });
-          selection.clear(); selection.add(node.id);
-          render();
-        };
-        img.src = ev.target.result;
+        const c = viewCenter();
+        placeImageNodeFromDataUrl(ev.target.result, c, { selectNode: true });
       };
       reader.readAsDataURL(file);
       return;
@@ -1911,8 +2063,8 @@ document.getElementById('tool-export').addEventListener('click', () => {
     maps = [{
       id: defaultMapId,
       name: 'Map 1',
-      nodes: JSON.parse(JSON.stringify(nodes)),
-      edges: JSON.parse(JSON.stringify(edges)),
+      nodes: deepClone(nodes),
+      edges: deepClone(edges),
       vp: { ...vp }
     }];
     activeMapId = defaultMapId;
@@ -1920,10 +2072,20 @@ document.getElementById('tool-export').addEventListener('click', () => {
     saveCurrentMap();
   }
 
+  // Re-embed image src from imageCache so exported files are self-contained
+  const _exportMaps = maps.map(m => ({
+    ...m,
+    nodes: m.nodes.map(n => {
+      if (n.type === 'image' && n.imageId && imageCache.has(n.imageId)) {
+        return { ...n, src: imageCache.get(n.imageId) };
+      }
+      return n;
+    })
+  }));
   const exportFormat = {
     type: 'BrainscapeData',
     version: 1,
-    maps: maps,
+    maps: _exportMaps,
     activeMapId: activeMapId,
     mapIdCtr: mapIdCtr,
     activeThemeId: activeThemeId
@@ -2008,6 +2170,17 @@ document.getElementById('tool-import').addEventListener('click', () => {
            throw new Error("Unrecognized JSON map format structure.");
         }
 
+        // Extract inline base64 images from imported data → IndexedDB
+        for (const m of loadedMaps) {
+          for (const n of (m.nodes || [])) {
+            if (n.type === 'image' && n.src && !n.imageId) {
+              n.imageId = generateImageId();
+              storeImage(n.imageId, n.src);
+              delete n.src;
+            }
+          }
+        }
+
         // Apply & Normalize
         maps = loadedMaps;
         activeMapId = loadedActiveMapId;
@@ -2047,16 +2220,8 @@ canvas.addEventListener('pointerdown', e => {
     const file = input.files[0]; if(!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => {
-        let iw=img.width, ih=img.height;
-        if (iw>500){ih=ih*500/iw;iw=500;} if(ih>400){iw=iw*400/ih;ih=400;}
-        pushHistory();
-        const c = eventToWorld(e);
-        addNode('image', c.x-iw/2, c.y-ih/2, iw, ih, { src:ev.target.result, fill:'transparent' });
-        render(); setTool('select');
-      };
-      img.src = ev.target.result;
+      const c = eventToWorld(e);
+      placeImageNodeFromDataUrl(ev.target.result, c, { switchToolToSelect: true });
     };
     reader.readAsDataURL(file);
   };
@@ -2066,46 +2231,55 @@ canvas.addEventListener('pointerdown', e => {
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-buildPalette();
-buildBackgroundPalette();
-setTool('select');
+(async () => {
+  // Open IndexedDB and pre-load all images into imageCache before first render
+  try {
+    await _openImageDB();
+    await _loadAllImages();
+  } catch (e) {
+    console.warn('Brainscape: IndexedDB unavailable, images stored in memory only.', e);
+  }
 
-if (!loadFromStorage()) {
-  applyBackgroundTheme(activeThemeId, true);
-  // Welcome state
-  const [dw, dh] = DEFAULT_SIZE.rect;
-  const r = svgRect();
-  const cx=(r.width-52)/2, cy=r.height/2;
-  const wp = screenToWorld(cx, cy);
-  const n1 = addNode('rect', wp.x-130, wp.y-44, 260, 88, { text:'My Brain Map', fill:'#4f46e5', fontSize:18 });
-  const n2 = addNode('rect', wp.x-300, wp.y+110, 170, 62, { text:'Idea 1', fill:'#6366f1' });
-  const n3 = addNode('rect', wp.x+130, wp.y+110, 170, 62, { text:'Idea 2', fill:'#ec4899' });
-  const n4 = addNode('circle', wp.x-70, wp.y+200, 110, 110, { text:'Concept', fill:'#10b981' });
-  addEdge('straight', 0,0,0,0, n1.id,'S', n2.id,'N');
-  addEdge('straight', 0,0,0,0, n1.id,'S', n3.id,'N');
-  addEdge('curved',   0,0,0,0, n2.id,'S', n4.id,'N');
-  
-  // Bootstrap map state with welcome nodes
-  const initialMapId = mapUid();
-  maps = [{
-    id: initialMapId,
-    name: 'Map 1',
-    nodes: JSON.parse(JSON.stringify(nodes)),
-    edges: JSON.parse(JSON.stringify(edges)),
-    vp: { ...vp }
-  }];
-  activeMapId = initialMapId;
+  buildPalette();
+  buildBackgroundPalette();
+  setTool('select');
 
-  saveTimer = null; 
-  localStorage.setItem(LS_KEY, JSON.stringify({ maps, activeMapId, mapIdCtr, activeThemeId }));
-}
+  if (!loadFromStorage()) {
+    applyBackgroundTheme(activeThemeId, true);
+    // Welcome state
+    const r = svgRect();
+    const cx=(r.width-52)/2, cy=r.height/2;
+    const wp = screenToWorld(cx, cy);
+    const n1 = addNode('rect', wp.x-130, wp.y-44, 260, 88, { text:'My Brain Map', fill:'#4f46e5', fontSize:18 });
+    const n2 = addNode('rect', wp.x-300, wp.y+110, 170, 62, { text:'Idea 1', fill:'#6366f1' });
+    const n3 = addNode('rect', wp.x+130, wp.y+110, 170, 62, { text:'Idea 2', fill:'#ec4899' });
+    const n4 = addNode('circle', wp.x-70, wp.y+200, 110, 110, { text:'Concept', fill:'#10b981' });
+    addEdge('straight', 0,0,0,0, n1.id,'S', n2.id,'N');
+    addEdge('straight', 0,0,0,0, n1.id,'S', n3.id,'N');
+    addEdge('curved',   0,0,0,0, n2.id,'S', n4.id,'N');
 
-// Ensure tabs are rendered at startup once map state exists
-renderTabs();
+    const initialMapId = mapUid();
+    maps = [{
+      id: initialMapId,
+      name: 'Map 1',
+      nodes: deepClone(nodes),
+      edges: deepClone(edges),
+      vp: { ...vp }
+    }];
+    activeMapId = initialMapId;
 
-pushHistory();
-render();
-canvas.focus();
+    saveTimer = null;
+    localStorage.setItem(LS_KEY, JSON.stringify({ maps, activeMapId, mapIdCtr, activeThemeId }));
+  }
+
+  // Migrate any legacy nodes that still carry inline base64 src → IndexedDB
+  migrateImageNodes();
+
+  renderTabs();
+  pushHistory();
+  render();
+  canvas.focus();
+})();
 </script>
 
 
