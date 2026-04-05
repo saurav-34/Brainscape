@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
+<!-- saved from url=(0041)file:///home/saurav/Brainscape/index.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Brain Map</title>
 <style>
@@ -13,16 +13,67 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 /* ── Canvas ── */
 #canvas {
   flex: 1; display: block; outline: none; cursor: default;
-  background: #2C2F3A;
+  background: #2C2F3A; min-height: 0;
 }
+#main {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+}
+
+/* ── Tab Bar ── */
+#tab-bar {
+  height: 36px; flex-shrink: 0;
+  background: rgba(19, 16, 58, 0.92);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid rgba(255,255,255,0.055);
+  display: flex; align-items: center;
+  padding: 0 6px; gap: 3px;
+  overflow-x: auto; overflow-y: hidden;
+}
+#tab-bar::-webkit-scrollbar { height: 3px; }
+#tab-bar::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 2px; }
+.map-tab {
+  height: 26px; padding: 0 10px;
+  border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: rgba(255,255,255,0.28);
+  cursor: pointer; font-size: 12px; font-family: system-ui, sans-serif; letter-spacing: 0.01em;
+  white-space: nowrap; display: flex; align-items: center; gap: 5px;
+  transition: background .15s, color .15s; flex-shrink: 0; outline: none;
+}
+.map-tab:hover { background: rgba(255,255,255,0.055); color: rgba(255,255,255,0.6); }
+.map-tab.active {
+  background: rgba(139, 92, 246, 0.16); color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.38);
+  box-shadow: 0 0 12px rgba(139,92,246,0.15);
+}
+.map-tab-close {
+  font-size: 13px; line-height: 1; opacity: 0; color: rgba(255,255,255,0.4);
+  transition: opacity .12s, color .12s; padding: 0 1px;
+}
+.map-tab:hover .map-tab-close { opacity: 1; }
+.map-tab-close:hover { color: #f87171 !important; }
+.map-tab-rename {
+  background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.5);
+  color: #e2e0ff; border-radius: 4px; padding: 1px 5px;
+  font-size: 12px; font-family: system-ui, sans-serif;
+  outline: none; min-width: 40px; max-width: 160px; width: 80px;
+}
+.map-tab-add {
+  width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;
+  background: transparent; border: 1px solid transparent;
+  color: rgba(255,255,255,0.28); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: background .15s, color .15s; outline: none; padding: 0;
+}
+.map-tab-add:hover { background: rgba(255,255,255,0.055); color: #c4b5fd; border-color: rgba(255,255,255,0.08); }
 
 /* ── Toolbar ── */
 #toolbar {
   width: 52px; flex-shrink: 0;
-  background: rgba(5, 7, 18, 0.82);
+  background: #1E2029;
   backdrop-filter: blur(28px) saturate(1.6);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  border-right: 1px solid rgba(255,255,255,0.055);
+  border-bottom: none;
   display: flex; flex-direction: column; align-items: center;
   padding: 12px 0; gap: 2px; z-index: 20;
 }
@@ -30,19 +81,19 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .tb-btn {
   width: 36px; height: 36px;
   border: 1px solid transparent; border-radius: 9px;
-  background: transparent; color: #32375a; cursor: pointer;
+  background: transparent; color: #aeb9ff; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
   position: relative; flex-shrink: 0;
 }
 .tb-btn:hover {
   background: rgba(255,255,255,0.06);
-  color: #b0b8e0;
+  color: #f1f5ff;
   border-color: rgba(255,255,255,0.08);
 }
 .tb-btn.active {
   background: rgba(139, 92, 246, 0.18);
-  color: #c4b5fd;
+  color: #ffffff;
   border-color: rgba(139, 92, 246, 0.42);
   box-shadow: 0 0 20px rgba(139,92,246,0.22), inset 0 0 14px rgba(139,92,246,0.08);
 }
@@ -66,8 +117,18 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 .swatch:hover { transform: scale(1.2); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
 .swatch.active { border-color: rgba(255,255,255,0.9); box-shadow: 0 0 12px rgba(255,255,255,0.18); }
 
+#bg-theme-palette { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; }
+.bg-swatch {
+  width: 18px; height: 18px; border-radius: 6px; cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.18);
+  transition: transform .12s, border-color .12s, box-shadow .12s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.bg-swatch:hover { transform: scale(1.12); border-color: rgba(255,255,255,0.45); }
+.bg-swatch.active { border-color: rgba(255,255,255,0.95); box-shadow: 0 0 12px rgba(255,255,255,0.18); }
+
 /* ── SVG element styles ── */
-.node-shape { stroke-width: 1.5; cursor: move; }
+.node-shape { stroke-width: 2.7; cursor: move; }
 .node-group:hover .node-shape { filter: brightness(1.1) saturate(1.08); }
 .node-label {
   fill: rgba(255,255,255,0.9); font-family: system-ui, -apple-system, sans-serif;
@@ -95,7 +156,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   fill: rgba(167,139,250,0.12); stroke: #a78bfa; stroke-width: 1.5; pointer-events: none;
   filter: drop-shadow(0 0 5px rgba(167,139,250,0.65));
 }
-.edge-preview { fill: none; stroke: #8b5cf6; stroke-width: 1.5; stroke-dasharray: 7 4; pointer-events: none; opacity: 0.75; }
+.edge-preview { fill: none; stroke: #ffffff; stroke-width: 1.5; stroke-dasharray: 7 4; pointer-events: none; opacity: 0.75; }
 
 /* ── Show anchors in arrow tools ── */
 #canvas.tool-arrow .anchor-dot, #canvas.tool-curve .anchor-dot { opacity: 0; }
@@ -103,17 +164,36 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 #canvas.tool-curve .node-group:hover .anchor-dot { opacity: 1; }
 
 /* ── Text editor overlay ── */
+#text-edit-wrap {
+  position: fixed; display: none; z-index: 200; pointer-events: none;
+  transform-origin: top left;
+}
+#text-format-bar {
+  pointer-events: auto; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 6px;
+  display: flex; gap: 4px; padding: 4px;
+  background: rgba(7, 5, 22, 0.96); backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(167, 139, 250, 0.5); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6); align-items: center;
+}
+#text-format-bar button {
+  background: none; border: none; color: #ece8ff; cursor: pointer;
+  padding: 4px 8px; border-radius: 4px; font-family: system-ui, sans-serif;
+  transition: background 0.1s; display: flex; align-items: center; justify-content: center;
+}
+#text-format-bar button:hover { background: rgba(255,255,255,0.1); }
 #text-editor {
-  position: fixed; display: none; z-index: 200;
+  pointer-events: auto;
   border: 1.5px solid rgba(167, 139, 250, 0.5); border-radius: 8px;
   padding: 6px 10px;
   background: rgba(7, 5, 22, 0.96);
   backdrop-filter: blur(12px);
   color: #ece8ff;
-  font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
-  outline: none; resize: none; overflow: hidden; min-width: 60px; min-height: 24px;
+  font-family: system-ui, -apple-system, sans-serif;
+  outline: none; overflow: hidden; min-width: 60px; min-height: 24px;
   text-align: center; line-height: 1.5;
   box-shadow: 0 0 28px rgba(139,92,246,0.22), 0 8px 40px rgba(0,0,0,0.7);
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  white-space: pre-wrap; word-break: break-word;
 }
 
 /* ── Context menu ── */
@@ -160,83 +240,99 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   <div id="toolbar">
     <button class="tb-btn active" id="tool-select" data-tool="select" title="Select  V">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-        <path d="M1.5 1L1.5 10.5L4 8L5.5 12L7 11.3L5.5 7.5L8.5 7L1.5 1Z"/>
+        <path d="M1.5 1L1.5 10.5L4 8L5.5 12L7 11.3L5.5 7.5L8.5 7L1.5 1Z"></path>
       </svg>
     </button>
     <div class="tb-sep"></div>
     <button class="tb-btn" id="tool-rect" data-tool="rect" title="Rectangle  R">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="1.5" y="3" width="11" height="8" rx="1.5"/>
+        <rect x="1.5" y="3" width="11" height="8" rx="1.5"></rect>
       </svg>
     </button>
     <button class="tb-btn" id="tool-circle" data-tool="circle" title="Circle  C">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <ellipse cx="7" cy="7" rx="5.5" ry="5.5"/>
+        <ellipse cx="7" cy="7" rx="5.5" ry="5.5"></ellipse>
       </svg>
     </button>
     <button class="tb-btn" id="tool-diamond" data-tool="diamond" title="Diamond  D">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <polygon points="7,1.5 12.5,7 7,12.5 1.5,7"/>
+        <polygon points="7,1.5 12.5,7 7,12.5 1.5,7"></polygon>
       </svg>
     </button>
     <button class="tb-btn" id="tool-text" data-tool="text" title="Text  T">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-        <path d="M1.5 3h11v1.8H8.2v6.7H5.8V4.8H1.5V3Z"/>
+        <path d="M1.5 3h11v1.8H8.2v6.7H5.8V4.8H1.5V3Z"></path>
       </svg>
     </button>
     <div class="tb-sep"></div>
     <button class="tb-btn" id="tool-arrow" data-tool="arrow" title="Arrow  A">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <line x1="2" y1="12" x2="11" y2="3"/>
-        <polyline points="6,3 11,3 11,8"/>
+        <line x1="2" y1="12" x2="11" y2="3"></line>
+        <polyline points="6,3 11,3 11,8"></polyline>
       </svg>
     </button>
     <button class="tb-btn" id="tool-curve" data-tool="curve" title="Curved Arrow  Q">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M2 12 C4 4, 10 2, 12 4"/>
-        <polyline points="9,2 12,4 10,7"/>
+        <path d="M2 12 C4 4, 10 2, 12 4"></path>
+        <polyline points="9,2 12,4 10,7"></polyline>
       </svg>
     </button>
     <div class="tb-sep"></div>
     <button class="tb-btn" id="tool-image" data-tool="image" title="Image  I">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="1.5" y="2" width="11" height="10" rx="1.5"/>
-        <circle cx="4.5" cy="5" r="1" fill="currentColor" stroke="none"/>
-        <polyline points="1.5,10 4.5,7 7,9.5 9.5,6.5 12.5,10"/>
+        <rect x="1.5" y="2" width="11" height="10" rx="1.5"></rect>
+        <circle cx="4.5" cy="5" r="1" fill="currentColor" stroke="none"></circle>
+        <polyline points="1.5,10 4.5,7 7,9.5 9.5,6.5 12.5,10"></polyline>
       </svg>
     </button>
-    <div id="color-palette"></div>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="tool-export" title="Export Maps (JSON)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 9 L7 2 M4 5 L7 2 L10 5 M2 11 L12 11"></path>
+      </svg>
+    </button>
+    <button class="tb-btn" id="tool-import" title="Import Maps (JSON)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 2 L7 9 M4 6 L7 9 L10 6 M2 11 L12 11"></path>
+      </svg>
+    </button>
+    <div id="color-palette"><div class="swatch active" data-color="#6366f1" title="#6366f1" style="background: rgb(99, 102, 241);"></div><div class="swatch" data-color="#8b5cf6" title="#8b5cf6" style="background: rgb(139, 92, 246);"></div><div class="swatch" data-color="#ec4899" title="#ec4899" style="background: rgb(236, 72, 153);"></div><div class="swatch" data-color="#06b6d4" title="#06b6d4" style="background: rgb(6, 182, 212);"></div><div class="swatch" data-color="#10b981" title="#10b981" style="background: rgb(16, 185, 129);"></div><div class="swatch" data-color="#f59e0b" title="#f59e0b" style="background: rgb(245, 158, 11);"></div><div class="swatch" data-color="#f43f5e" title="#f43f5e" style="background: rgb(244, 63, 94);"></div><div class="swatch" data-color="#1e1b3a" title="#1e1b3a" style="border: 2px solid rgb(42, 45, 62); background: rgb(30, 27, 58);"></div></div>
+    <div class="tb-sep"></div>
+    <div id="bg-theme-palette"></div>
   </div>
 
+  <div id="main">
+  
   <!-- SVG Canvas -->
   <svg id="canvas" tabindex="0">
     <defs>
-      <pattern id="dotpat" width="24" height="24" patternUnits="userSpaceOnUse">
-        <circle cx="0" cy="0" r="0.85" fill="rgba(255,255,255,0.055)"/>
+      <pattern id="dotpat" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="translate(0,0)">
+        <circle id="dotpat-circle" cx="0" cy="0" r="0.85" fill="rgba(255,255,255,0.055)"></circle>
       </pattern>
       <marker id="ah-def" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,9 3.5,0 7" fill="#3a4a6a"/>
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
       <marker id="ah-sel" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,9 3.5,0 7" fill="#a78bfa"/>
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
       <marker id="ah-preview" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-        <polygon points="0 0,9 3.5,0 7" fill="#a78bfa"/>
+        <polygon points="0 0,9 3.5,0 7" fill="#ffffff"></polygon>
       </marker>
     </defs>
     <!-- Grid bg (outside viewport so it fills screen) -->
-    <rect id="grid-rect" width="100%" height="100%" fill="url(#dotpat)"/>
+    <rect id="grid-rect" width="100%" height="100%" fill="url(#dotpat)"></rect>
     <!-- Viewport group -->
-    <g id="vp">
+    <g id="vp" transform="translate(0,0) scale(1)">
       <g id="layer-edges"></g>
       <g id="layer-nodes"></g>
       <g id="layer-overlay"></g>
     </g>
   </svg>
+  </div><!-- #main -->
 </div>
 
 <!-- Context Menu -->
-<div id="ctx-menu">
+<div id="ctx-menu" style="display: none;">
   <button id="ctx-delete" class="ctx-danger">Delete</button>
   <div class="ctx-sep"></div>
   <button id="ctx-dup">Duplicate</button>
@@ -246,7 +342,16 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 </div>
 
 <!-- Inline Text Editor -->
-<textarea id="text-editor" rows="1" spellcheck="false"></textarea>
+<div id="text-edit-wrap" style="display: none;">
+  <div id="text-format-bar">
+    <button id="fmt-bold" style="font-weight: bold;" title="Bold">B</button>
+    <button id="fmt-italic" style="font-style: italic;" title="Italic">I</button>
+    <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
+    <button id="fmt-size-down" title="Smaller Font">A-</button>
+    <button id="fmt-size-up" title="Larger Font">A+</button>
+  </div>
+  <div id="text-editor" contenteditable="true" spellcheck="false"></div>
+</div>
 
 <!-- Status Bar -->
 <div id="statusbar">
@@ -265,11 +370,21 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 // ═══════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════
-const PALETTE = ['#6366f1','#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b','#f43f5e','#1e1b3a'];
+const PALETTE = ['#130d21','#B8A7F0','#86C8D5','#90CBB7','#E7BF84','#E7A98A','#DF9DB6','#CFD8E7'];
+const BACKGROUND_THEMES = [
+  { id:'midnight', name:'Midnight', canvas:'#2C2F3A', dot:'rgba(255,255,255,0.055)', preview:'linear-gradient(135deg,#2c2f3a,#222530)' },
+  { id:'ink', name:'Ink', canvas:'#101522', dot:'rgba(200,220,255,0.08)', preview:'linear-gradient(135deg,#0d111b,#1a2340)' },
+  { id:'blush-night', name:'Blush Night', canvas:'#2a2134', dot:'rgba(255,210,236,0.1)', preview:'linear-gradient(135deg,#2a2134,#49345c)' },
+  { id:'hot-pink', name:'Hot Pink', canvas:'#3b0f2d', dot:'rgba(255,170,225,0.15)', preview:'linear-gradient(135deg,#3b0f2d,#7a1f58)' },
+  { id:'petal-cloud', name:'Petal Cloud', canvas:'#FF52A3', dot:'rgba(92,15,54,0.2)', preview:'linear-gradient(135deg,#ff52a3,#c92d7b)' },
+  { id:'dusk', name:'Dusk', canvas:'#1a1730', dot:'rgba(206,189,255,0.08)', preview:'linear-gradient(135deg,#1a1730,#2d2553)' },
+  { id:'slate', name:'Slate', canvas:'#1f252d', dot:'rgba(220,230,242,0.08)', preview:'linear-gradient(135deg,#1f252d,#2f3741)' },
+  { id:'paper', name:'Paper', canvas:'#f2f4f8', dot:'rgba(15,23,42,0.14)', preview:'linear-gradient(135deg,#f2f4f8,#dde3ee)' }
+];
 const DEFAULT_SIZE = { rect:[160,80], circle:[100,100], diamond:[120,100], text:[160,44], image:[200,150] };
 const MIN_ZOOM = 0.08, MAX_ZOOM = 5, ZOOM_F = 0.11;
 const SNAP_DIST = 18; // screen px for anchor snap
-const LS_KEY = 'brainmap_v3';
+const LS_KEY = 'brainmap_v4';
 const ANCHOR_NAMES = ['N','E','S','W'];
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -281,11 +396,19 @@ let edges = [];
 let vp = { x: 0, y: 0, s: 1 };
 let selection = new Set();
 let activeTool = 'select';
-let activeFill = '#6366f1';
+let activeFill = '#130d21';
+let activeThemeId = 'midnight';
 let history = [];
 let future  = [];
 let idCtr = 1;
 function uid() { return 'id' + (idCtr++); }
+
+// Multi-map state
+let maps = [];
+let activeMapId = null;
+let mapIdCtr = 1;
+function mapUid() { return 'map' + (mapIdCtr++); }
+function currentMap() { return maps.find(m => m.id === activeMapId); }
 
 // Interaction state
 const ix = {
@@ -307,6 +430,20 @@ const ix = {
 // COORDINATE UTILS
 // ═══════════════════════════════════════════
 const canvas = document.getElementById('canvas');
+
+function getBackgroundThemeById(themeId) {
+  return BACKGROUND_THEMES.find(t => t.id === themeId) || BACKGROUND_THEMES[0];
+}
+
+function applyBackgroundTheme(themeId, skipSave=false) {
+  const theme = getBackgroundThemeById(themeId);
+  activeThemeId = theme.id;
+  canvas.style.background = theme.canvas;
+  document.getElementById('dotpat-circle')?.setAttribute('fill', theme.dot);
+  document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
+  document.querySelector(`.bg-swatch[data-theme="${theme.id}"]`)?.classList.add('active');
+  if (!skipSave) scheduleSave();
+}
 
 function svgRect() { return canvas.getBoundingClientRect(); }
 
@@ -408,6 +545,33 @@ function setAttrs(e, attrs) {
   for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
 }
 
+function isLightHexColor(color) {
+  if (!color || typeof color !== 'string' || color[0] !== '#') return false;
+  let hex = color.slice(1);
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length !== 6) return false;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  if ([r, g, b].some(n => Number.isNaN(n))) return false;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.72;
+}
+
+function labelColorForNode(node) {
+  if (node.type === 'text') return '#1E293B';
+  return isLightHexColor(node.fill) ? '#0f172a' : 'rgba(255,255,255,0.9)';
+}
+
+function hintColorForNode(node) {
+  if (node.type === 'text') return 'rgba(30,41,59,0.42)';
+  return isLightHexColor(node.fill) ? 'rgba(15,23,42,0.4)' : 'rgba(255,255,255,0.22)';
+}
+
+function borderColorForNode(node) {
+  return '#ffffff';
+}
+
 // ═══════════════════════════════════════════
 // HISTORY
 // ═══════════════════════════════════════════
@@ -425,8 +589,10 @@ function applySnapshot(s) {
   nodes = s.nodes; edges = s.edges;
   idCtr = Math.max(idCtr, ...nodes.map(n=>parseInt(n.id.slice(2))+1), ...edges.map(e=>parseInt(e.id.slice(2))+1), 1);
   selection.clear();
-  document.getElementById('layer-nodes').innerHTML = '';
-  document.getElementById('layer-edges').innerHTML = '';
+  const ln = document.getElementById('layer-nodes');
+  const le = document.getElementById('layer-edges');
+  if (ln) ln.innerHTML = '';
+  if (le) le.innerHTML = '';
   render();
 }
 
@@ -443,29 +609,185 @@ function redo() {
 }
 
 // ═══════════════════════════════════════════
+// MULTI-MAP
+// ═══════════════════════════════════════════
+function saveCurrentMap() {
+  const m = currentMap();
+  if (!m) return;
+  m.nodes = JSON.parse(JSON.stringify(nodes));
+  m.edges = JSON.parse(JSON.stringify(edges));
+  m.vp = { ...vp };
+}
+
+function loadMapData(m) {
+  nodes = JSON.parse(JSON.stringify(m.nodes || []));
+  edges = JSON.parse(JSON.stringify(m.edges || []));
+  // Ensure text nodes always have a stable default fill.
+  for (const n of nodes) {
+    if (n.type === 'text' && (!n.fill || n.fill === '#4d7ef7' || n.fill === '#9FAAF3')) n.fill = '#130d21';
+  }
+  // Migrate older default edge colors to the current default (white)
+  for (const e of edges) {
+    if (!e.color || e.color === '#3a4a6a' || e.color === '#22283a') e.color = '#ffffff';
+  }
+  vp = m.vp ? { ...m.vp } : { x: 0, y: 0, s: 1 };
+  history = []; future = [];
+  idCtr = Math.max(1,
+    ...nodes.map(n => parseInt(n.id.slice(2)) + 1),
+    ...edges.map(e => parseInt(e.id.slice(2)) + 1)
+  );
+  selection.clear();
+  
+  const layerNodes = document.getElementById('layer-nodes');
+  const layerEdges = document.getElementById('layer-edges');
+  if (layerNodes) layerNodes.innerHTML = '';
+  if (layerEdges) layerEdges.innerHTML = '';
+}
+
+function switchMap(id) {
+  if (id === activeMapId) return;
+  closeTextEditor(false);
+  saveCurrentMap();
+  activeMapId = id;
+  loadMapData(currentMap());
+  render();
+  renderTabs();
+  scheduleSave();
+}
+
+function addMap(name) {
+  saveCurrentMap();
+  const id = mapUid();
+  const m = { id, name: name || 'Map ' + (maps.length + 1), nodes: [], edges: [], vp: { x: 0, y: 0, s: 1 } };
+  maps.push(m);
+  activeMapId = id;
+  loadMapData(m);
+  render();
+  renderTabs();
+  scheduleSave();
+  // Scroll new tab into view
+  setTimeout(() => {
+    const tab = document.querySelector('.map-tab.active');
+    tab?.scrollIntoView({ inline: 'nearest' });
+  }, 50);
+}
+
+function deleteMap(id) {
+  if (maps.length <= 1) return;
+  const idx = maps.findIndex(m => m.id === id);
+  if (idx === -1) return;
+  maps.splice(idx, 1);
+  if (activeMapId === id) {
+    const newIdx = Math.min(idx, maps.length - 1);
+    activeMapId = maps[newIdx].id;
+    loadMapData(currentMap());
+    render();
+  }
+  renderTabs();
+  scheduleSave();
+}
+
+function renameMap(id, name) {
+  const m = maps.find(m => m.id === id);
+  if (m && name.trim()) { m.name = name.trim(); renderTabs(); scheduleSave(); }
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  for (const m of maps) {
+    const tab = document.createElement('button');
+    tab.className = 'map-tab' + (m.id === activeMapId ? ' active' : '');
+    tab.setAttribute('data-mapid', m.id);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'map-tab-name';
+    nameSpan.textContent = m.name;
+    tab.appendChild(nameSpan);
+
+    if (maps.length > 1) {
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'map-tab-close';
+      closeBtn.textContent = '×';
+      closeBtn.title = 'Delete map';
+      closeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (confirm('Delete "' + m.name + '"?')) deleteMap(m.id);
+      });
+      tab.appendChild(closeBtn);
+    }
+
+    tab.addEventListener('click', () => switchMap(m.id));
+    tab.addEventListener('dblclick', e => { e.stopPropagation(); startRenameTab(m.id, nameSpan); });
+    bar.appendChild(tab);
+  }
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'map-tab-add';
+  addBtn.title = 'New map (Ctrl+Shift+N)';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', () => addMap());
+  bar.appendChild(addBtn);
+}
+
+function startRenameTab(mapId, nameSpan) {
+  const oldName = nameSpan.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = oldName;
+  input.className = 'map-tab-rename';
+  nameSpan.replaceWith(input);
+  input.focus(); input.select();
+  const commit = () => { const n = input.value.trim() || oldName; renameMap(mapId, n); };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape') { input.value = oldName; input.blur(); }
+  });
+}
+
+// ═══════════════════════════════════════════
 // PERSISTENCE
 // ═══════════════════════════════════════════
 let saveTimer = null;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ nodes, edges, vp })); } catch(e) {}
+    saveCurrentMap();
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ maps, activeMapId, mapIdCtr, activeThemeId })); } catch(e) {}
   }, 1500);
 }
 
 function loadFromStorage() {
   try {
+    // Try new multi-map format
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
-    const d = JSON.parse(raw);
-    nodes = d.nodes || [];
-    edges = d.edges || [];
-    vp    = d.vp || { x:0, y:0, s:1 };
-    idCtr = Math.max(1,
-      ...nodes.map(n => parseInt(n.id.slice(2))+1),
-      ...edges.map(e => parseInt(e.id.slice(2))+1)
-    );
-    return true;
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.maps && d.maps.length) {
+        maps = d.maps;
+        mapIdCtr = d.mapIdCtr || maps.length + 1;
+        activeMapId = d.activeMapId || maps[0].id;
+        activeThemeId = d.activeThemeId || activeThemeId;
+        if (!currentMap()) activeMapId = maps[0].id;
+        try { loadMapData(currentMap()); } catch(e) { console.error("Could not load inner nodes", e); }
+        applyBackgroundTheme(activeThemeId, true);
+        return true;
+      }
+    }
+    // Migrate old single-map format (brainmap_v3)
+    const oldRaw = localStorage.getItem('brainmap_v3');
+    if (oldRaw) {
+      const d = JSON.parse(oldRaw);
+      const m = { id: 'map1', name: 'Map 1', nodes: d.nodes || [], edges: d.edges || [], vp: d.vp || { x:0,y:0,s:1 } };
+      maps = [m]; mapIdCtr = 2; activeMapId = 'map1';
+      try { loadMapData(m); } catch(e) { console.error("Migrate error", e); }
+      applyBackgroundTheme(activeThemeId, true);
+      return true;
+    }
+    return false;
   } catch(e) { return false; }
 }
 
@@ -475,27 +797,32 @@ function loadFromStorage() {
 
 function renderNode(node) {
   const layer = document.getElementById('layer-nodes');
+  if (!layer) return;
   let g = document.getElementById('n-' + node.id);
   if (!g) {
     g = el('g', { id: 'n-'+node.id, class: 'node-group', 'data-id': node.id });
     layer.appendChild(g);
   }
   g.innerHTML = '';
-  const { type, x, y, w, h, text='', fill='#4d7ef7' } = node;
+  const { type, x, y, w, h, text='' } = node;
+  const fill = node.fill ?? (type === 'text' ? '#130d21' : '#4d7ef7');
   const isSel = selection.has(node.id);
+  const labelColor = labelColorForNode(node);
+  const hintColor = hintColorForNode(node);
+  const border = borderColorForNode(node);
 
   // Main shape
   let shape;
   if (type === 'rect' || type === 'text') {
     shape = el('rect', { class:'node-shape', x, y, width:w, height:h, rx: type==='rect'?10:5,
-      fill: type==='text'?'rgba(255,255,255,0.03)':fill,
-      stroke: type==='text'?'rgba(255,255,255,0.07)':'rgba(255,255,255,0.18)' });
+      fill,
+      stroke: border });
   } else if (type === 'circle') {
     shape = el('ellipse', { class:'node-shape', cx:x+w/2, cy:y+h/2, rx:w/2, ry:h/2,
-      fill, stroke:'rgba(255,255,255,0.18)' });
+      fill, stroke:border });
   } else if (type === 'diamond') {
     const pts = `${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`;
-    shape = el('polygon', { class:'node-shape', points:pts, fill, stroke:'rgba(255,255,255,0.18)' });
+    shape = el('polygon', { class:'node-shape', points:pts, fill, stroke:border });
   } else if (type === 'image') {
     const defs = el('defs');
     const clip = el('clipPath', { id:'clip-'+node.id });
@@ -507,24 +834,46 @@ function renderNode(node) {
   }
   g.appendChild(shape);
 
+  if (type === 'image') {
+    g.appendChild(el('rect', {
+      x, y, width:w, height:h, rx:8,
+      fill:'none',
+      stroke:border,
+      'stroke-width':2,
+      'pointer-events':'none'
+    }));
+  }
+
   // Text label
   if (type !== 'image' && (text || !isSel)) {
-    const lines = (text || '').split('\n');
     const fs = node.fontSize || 14;
-    const lh = fs * 1.4;
-    const totalH = lines.length * lh;
-    const startY = y + h/2 - totalH/2 + lh/2;
+    const fw = node.bold ? 'bold' : 'normal';
+    const fSt = node.italic ? 'italic' : 'normal';
+    
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    setAttrs(fo, { x, y, width:w, height:h, style:'pointer-events:none;' });
+    
+    // Create an HTML div for text
+    const div = document.createElement('div');
+    div.style.cssText = `
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+      font-size: ${fs}px; font-weight: ${fw}; font-style: ${fSt};
+      color: ${labelColor};
+      font-family: system-ui, -apple-system, sans-serif;
+      box-sizing: border-box; padding: 4px;
+      word-break: break-word; white-space: pre-wrap;
+    `;
     if (text) {
-      lines.forEach((line, i) => {
-        const t = el('text', { class:'node-label', x:x+w/2, y:startY + i*lh, 'font-size':fs });
-        t.textContent = line;
-        g.appendChild(t);
-      });
+      div.innerHTML = text; // Now supports rich text HTML tags
     } else if (!isSel) {
-      const t = el('text', { class:'node-label', x:x+w/2, y:y+h/2, 'font-size':11, opacity:0.22 });
-      t.textContent = 'double-click to edit';
-      g.appendChild(t);
+      div.style.color = hintColor;
+      div.style.fontSize = '11px';
+      div.innerText = 'double-click to edit';
     }
+    fo.appendChild(div);
+    g.appendChild(fo);
   }
 
   // Anchor dots (shown via CSS on hover in arrow tools)
@@ -560,6 +909,7 @@ function renderNode(node) {
 
 function renderEdge(edge) {
   const layer = document.getElementById('layer-edges');
+  if (!layer) return;
   let g = document.getElementById('e-' + edge.id);
   if (!g) {
     g = el('g', { id:'e-'+edge.id, class:'edge-group', 'data-id':edge.id });
@@ -568,8 +918,8 @@ function renderEdge(edge) {
   g.innerHTML = '';
   const isSel = selection.has(edge.id);
   const { x1, y1, x2, y2 } = resolveEdge(edge);
-  const stroke = edge.color || '#3a4a6a';
-  const sw = edge.strokeWidth || 1.5;
+  const stroke = edge.color || '#ffffff';
+  const sw = edge.strokeWidth == null || edge.strokeWidth === 1.5 ? 2.8 : edge.strokeWidth;
   const marker = isSel ? 'url(#ah-sel)' : 'url(#ah-def)';
 
   let d, cp = null;
@@ -641,7 +991,9 @@ function render() {
 // CRUD HELPERS
 // ═══════════════════════════════════════════
 function addNode(type, x, y, w, h, extra={}) {
-  const node = { id:uid(), type, x, y, w, h, text:'', fill:activeFill, ...extra };
+  const defaultFill = type === 'text' ? '#130d21' : activeFill;
+  const resolvedFill = extra.fill ?? defaultFill;
+  const node = { id:uid(), type, x, y, w, h, text:'', ...extra, fill:resolvedFill };
   nodes.push(node);
   renderNode(node);
   scheduleSave();
@@ -649,7 +1001,7 @@ function addNode(type, x, y, w, h, extra={}) {
 }
 
 function addEdge(type, x1, y1, x2, y2, fromId=null, fromAnchor=null, toId=null, toAnchor=null) {
-  const edge = { id:uid(), type, x1, y1, x2, y2, fromId, fromAnchor, toId, toAnchor, color:'#3a4a6a' };
+  const edge = { id:uid(), type, x1, y1, x2, y2, fromId, fromAnchor, toId, toAnchor, color:'#ffffff', strokeWidth:2.8 };
   edges.push(edge);
   renderEdge(edge);
   scheduleSave();
@@ -724,21 +1076,35 @@ function sendToBack() {
 // TEXT EDITOR
 // ═══════════════════════════════════════════
 const textEditor = document.getElementById('text-editor');
+const textWrap = document.getElementById('text-edit-wrap');
 let editingId = null;
 
 function openTextEditor(node) {
   editingId = node.id;
   const r = svgRect();
   const sp = worldToScreen(node.x, node.y);
-  textEditor.style.left   = (r.left + sp.x) + 'px';
-  textEditor.style.top    = (r.top  + sp.y) + 'px';
+  textWrap.style.left   = (r.left + sp.x) + 'px';
+  textWrap.style.top    = (r.top  + sp.y) + 'px';
+  textWrap.style.display = 'block';
+
   textEditor.style.width  = Math.max(60, node.w * vp.s) + 'px';
   textEditor.style.height = Math.max(24, node.h * vp.s) + 'px';
   textEditor.style.fontSize = ((node.fontSize||14) * vp.s) + 'px';
-  textEditor.style.display = 'block';
-  textEditor.value = node.text || '';
+  textEditor.style.fontWeight = node.bold ? 'bold' : 'normal';
+  textEditor.style.fontStyle = node.italic ? 'italic' : 'normal';
+  
+  document.getElementById('fmt-bold').style.background = node.bold ? 'rgba(255,255,255,0.2)' : 'none';
+  document.getElementById('fmt-italic').style.background = node.italic ? 'rgba(255,255,255,0.2)' : 'none';
+
+  textEditor.innerHTML = node.text || '';
   textEditor.focus();
-  textEditor.select();
+  // Move cursor to end
+  const range = document.createRange();
+  const sel = window.getSelection();
+  range.selectNodeContents(textEditor);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 function closeTextEditor(commit=true) {
@@ -746,13 +1112,87 @@ function closeTextEditor(commit=true) {
   if (commit) {
     pushHistory();
     const node = nodes.find(n => n.id===editingId);
-    if (node) { node.text = textEditor.value; renderNode(node); }
+    if (node) {
+      node.text = textEditor.innerHTML;
+      if (node.type === 'text' && (!node.fill || node.fill === '#4d7ef7' || node.fill === '#9FAAF3')) {
+        node.fill = '#130d21';
+      }
+      renderNode(node);
+    }
     scheduleSave();
   }
-  textEditor.style.display = 'none';
+  textWrap.style.display = 'none';
   editingId = null;
   canvas.focus();
 }
+
+document.getElementById('text-format-bar').addEventListener('mousedown', e => e.preventDefault());
+
+document.getElementById('fmt-bold').addEventListener('click', e => {
+  const node = nodes.find(n => n.id === editingId);
+  if (!node) return;
+  document.execCommand('bold', false, null);
+});
+
+document.getElementById('fmt-italic').addEventListener('click', e => {
+  const node = nodes.find(n => n.id === editingId);
+  if (!node) return;
+  document.execCommand('italic', false, null);
+});
+
+document.getElementById('fmt-size-up').addEventListener('click', () => {
+  const node = nodes.find(n => n.id === editingId);
+  if (!node) return;
+  
+  const sel = window.getSelection();
+  if (sel.rangeCount) {
+    const el = document.createElement('span');
+    el.style.fontSize = '120%';
+    const range = sel.getRangeAt(0);
+    // Since direct formatting size via execCommand is limited to 1-7,
+    // we use a quick workaround of font size spans.
+    if (!range.collapsed) {
+      document.execCommand('fontSize', false, "7");
+      let fontElements = document.getElementsByTagName("font");
+      for (let i = 0; i < fontElements.length; ++i) {
+        if (fontElements[i].size == "7") {
+          fontElements[i].removeAttribute("size");
+          fontElements[i].style.fontSize = "120%";
+        }
+      }
+    } else {
+      // If no text selected, fall back to global resize
+      node.fontSize = (node.fontSize || 14) + 2;
+      textEditor.style.fontSize = (node.fontSize * vp.s) + 'px';
+      renderNode(node);
+    }
+  }
+});
+
+document.getElementById('fmt-size-down').addEventListener('click', () => {
+  const node = nodes.find(n => n.id === editingId);
+  if (!node) return;
+  
+  const sel = window.getSelection();
+  if (sel.rangeCount) {
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) {
+      document.execCommand('fontSize', false, "1");
+      let fontElements = document.getElementsByTagName("font");
+      for (let i = 0; i < fontElements.length; ++i) {
+        if (fontElements[i].size == "1") {
+          fontElements[i].removeAttribute("size");
+          fontElements[i].style.fontSize = "80%";
+        }
+      }
+    } else {
+      // If no text selected, fall back to global resize
+      node.fontSize = Math.max(8, (node.fontSize || 14) - 2);
+      textEditor.style.fontSize = (node.fontSize * vp.s) + 'px';
+      renderNode(node);
+    }
+  }
+});
 
 textEditor.addEventListener('blur', () => closeTextEditor(true));
 textEditor.addEventListener('keydown', e => {
@@ -762,6 +1202,12 @@ textEditor.addEventListener('keydown', e => {
     const n = nodes.find(n => n.id===editingId);
     if (n && n.type !== 'text') { closeTextEditor(true); e.preventDefault(); }
   }
+});
+textEditor.addEventListener('paste', e => {
+  // Try to prevent massive formatting dumps, paste as plain text
+  e.preventDefault();
+  const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+  document.execCommand('insertText', false, text);
 });
 textEditor.addEventListener('input', () => {
   textEditor.style.height = 'auto';
@@ -796,7 +1242,7 @@ function setTool(t) {
   document.querySelectorAll('.tb-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tool-'+t)?.classList.add('active');
   canvas.className = 'tool-' + t;
-  const cursors = { select:'default', rect:'crosshair', circle:'crosshair', diamond:'crosshair',
+  const cursors = { select:'grab', rect:'crosshair', circle:'crosshair', diamond:'crosshair',
     text:'text', arrow:'crosshair', curve:'crosshair', image:'crosshair' };
   canvas.style.cursor = cursors[t] || 'default';
   updateStatusBar();
@@ -819,7 +1265,13 @@ function setFill(color) {
 // ═══════════════════════════════════════════
 
 canvas.addEventListener('pointerdown', e => {
-  if (editingId) return;
+  // Capture targets *before* closeTextEditor potentially replaces DOM elements
+  const rh = e.target.closest('.resize-handle');
+  const cph = e.target.closest('.edge-ctrl-handle');
+  const ng = e.target.closest('.node-group');
+  const eg = e.target.closest('.edge-group');
+
+  if (editingId) closeTextEditor(true);
   hideCtxMenu();
 
   // Middle mouse or Space+drag = pan
@@ -840,7 +1292,6 @@ canvas.addEventListener('pointerdown', e => {
   const wp = screenToWorld(sp.x, sp.y);
 
   // ── Resize handle ──
-  const rh = e.target.closest('.resize-handle');
   if (rh && activeTool === 'select') {
     pushHistory();
     const nodeId = rh.getAttribute('data-nid');
@@ -852,7 +1303,6 @@ canvas.addEventListener('pointerdown', e => {
   }
 
   // ── Edge control point ──
-  const cph = e.target.closest('.edge-ctrl-handle');
   if (cph && activeTool === 'select') {
     pushHistory();
     ix.edgeId = cph.getAttribute('data-eid');
@@ -864,45 +1314,72 @@ canvas.addEventListener('pointerdown', e => {
   }
 
   // ── Node click ──
-  const ng = e.target.closest('.node-group');
   if (ng) {
     const nodeId = ng.getAttribute('data-id');
 
     if (activeTool === 'select') {
+      const wasSelected = selection.has(nodeId);
       if (e.shiftKey) {
-        if (selection.has(nodeId)) selection.delete(nodeId); else selection.add(nodeId);
+        if (wasSelected) selection.delete(nodeId); else selection.add(nodeId);
       } else {
-        if (!selection.has(nodeId)) { selection.clear(); selection.add(nodeId); }
+        if (!wasSelected) { selection.clear(); selection.add(nodeId); }
       }
       render();
       pushHistory();
       ix.mode = 'move-node'; ix.startWX = wp.x; ix.startWY = wp.y;
-      ix.multiSnap = [...selection]
-        .map(id => nodes.find(n => n.id===id)).filter(Boolean)
-        .map(n => ({ id:n.id, ox:n.x, oy:n.y }));
+      ix.wasSelected = wasSelected;
+      ix.multiSnap = [];
+      for (const id of selection) {
+        const n = nodes.find(n=>n.id===id); if(n) ix.multiSnap.push({ type:'node', id:n.id, ox:n.x, oy:n.y });
+        const ed = edges.find(e=>e.id===id); if(ed) {
+          const r = resolveEdge(ed);
+          ix.multiSnap.push({ type:'edge', id:ed.id, ox1:r.x1, oy1:r.y1, ox2:r.x2, oy2:r.y2, ocx:ed.cx, ocy:ed.cy });
+        }
+      }
       e.stopPropagation(); return;
     }
 
     // Arrow/curve tool: start from node anchor
     if (activeTool === 'arrow' || activeTool === 'curve') {
-      const anch = nearestAnchor(ng.__node__ || nodes.find(n=>n.id===nodeId), wp.x, wp.y);
+      const anch = nearestAnchor(nodes.find(n=>n.id===nodeId), wp.x, wp.y);
       const fromAnchor = anch?.name || 'E';
       const ap = anchorPos(nodeId, fromAnchor) || wp;
       ix.mode = 'draw-edge'; ix.edgeFromId = nodeId; ix.edgeFromAnchor = fromAnchor;
+      ix.startSX = sp.x; ix.startSY = sp.y;
       ix.edgeX1 = ap.x; ix.edgeY1 = ap.y;
+      ix.snapTarget = null;
       _startEdgePreview(ix.edgeX1, ix.edgeY1, ix.edgeX1, ix.edgeY1);
       e.stopPropagation(); return;
+    }
+
+    // Shape tools should only draw on empty canvas, not on existing nodes.
+    if (['rect','circle','diamond','text'].includes(activeTool)) {
+      e.stopPropagation();
+      return;
     }
   }
 
   // ── Edge click ──
-  const eg = e.target.closest('.edge-group');
   if (eg && activeTool === 'select') {
     const edgeId = eg.getAttribute('data-id');
+    const wasSelected = selection.has(edgeId);
     if (e.shiftKey) {
-      if (selection.has(edgeId)) selection.delete(edgeId); else selection.add(edgeId);
-    } else { selection.clear(); selection.add(edgeId); }
+      if (wasSelected) selection.delete(edgeId); else selection.add(edgeId);
+    } else {
+      if (!wasSelected) { selection.clear(); selection.add(edgeId); }
+    }
     render();
+    pushHistory();
+    ix.mode = 'move-node'; ix.startWX = wp.x; ix.startWY = wp.y;
+    ix.wasSelected = wasSelected;
+    ix.multiSnap = [];
+    for (const id of selection) {
+      const n = nodes.find(n=>n.id===id); if(n) ix.multiSnap.push({ type:'node', id:n.id, ox:n.x, oy:n.y });
+      const ed = edges.find(e=>e.id===id); if(ed) {
+        const r = resolveEdge(ed);
+        ix.multiSnap.push({ type:'edge', id:ed.id, ox1:r.x1, oy1:r.y1, ox2:r.x2, oy2:r.y2, ocx:ed.cx, ocy:ed.cy });
+      }
+    }
     e.stopPropagation(); return;
   }
 
@@ -927,18 +1404,20 @@ canvas.addEventListener('pointerdown', e => {
   // ── Arrow/curve tools on empty canvas ──
   if (activeTool === 'arrow' || activeTool === 'curve') {
     ix.mode = 'draw-edge'; ix.edgeFromId = null; ix.edgeFromAnchor = null;
+    ix.startSX = sp.x; ix.startSY = sp.y;
     ix.edgeX1 = wp.x; ix.edgeY1 = wp.y;
+    ix.snapTarget = null;
     _startEdgePreview(wp.x, wp.y, wp.x, wp.y);
     return;
   }
 
-  // ── Empty canvas: deselect + rubber band ──
+  // ── Empty canvas in select mode: drag to pan canvas ──
   if (activeTool === 'select') {
     if (!e.shiftKey) { selection.clear(); render(); }
-    ix.mode = 'rubber-band'; ix.startWX = wp.x; ix.startWY = wp.y;
-    const rb = el('rect', { class:'rubber-band', x:wp.x, y:wp.y, width:0, height:0 });
-    document.getElementById('layer-overlay').appendChild(rb);
-    ix.preview = rb;
+    ix.mode = 'pan';
+    ix.startSX = e.clientX - vp.x;
+    ix.startSY = e.clientY - vp.y;
+    canvas.style.cursor = 'grabbing';
   }
 });
 
@@ -963,12 +1442,29 @@ canvas.addEventListener('pointermove', e => {
 
   if (ix.mode === 'move-node') {
     const dx = wp.x - ix.startWX, dy = wp.y - ix.startWY;
+    const ids = new Set();
     for (const snap of ix.multiSnap) {
-      const n = nodes.find(n => n.id===snap.id);
-      if (n) { n.x = snap.ox+dx; n.y = snap.oy+dy; renderNode(n); }
+      if (snap.type === 'node') {
+        const n = nodes.find(n => n.id===snap.id);
+        if (n) { n.x = snap.ox+dx; n.y = snap.oy+dy; renderNode(n); }
+        ids.add(snap.id);
+      } else if (snap.type === 'edge') {
+        const ed = edges.find(e => e.id===snap.id);
+        if (ed) {
+          // Detach anchors when dragging edge manually
+          if (ed.fromId) { ed.fromId = null; ed.fromAnchor = null; }
+          if (ed.toId) { ed.toId = null; ed.toAnchor = null; }
+          ed.x1 = snap.ox1 + dx;
+          ed.y1 = snap.oy1 + dy;
+          ed.x2 = snap.ox2 + dx;
+          ed.y2 = snap.oy2 + dy;
+          if (snap.ocx != null) ed.cx = snap.ocx + dx;
+          if (snap.ocy != null) ed.cy = snap.ocy + dy;
+          renderEdge(ed);
+        }
+      }
     }
     // Update connected edges
-    const ids = new Set(ix.multiSnap.map(s=>s.id));
     for (const edge of edges) {
       if ((edge.fromId && ids.has(edge.fromId)) || (edge.toId && ids.has(edge.toId))) renderEdge(edge);
     }
@@ -1085,6 +1581,17 @@ canvas.addEventListener('pointerup', e => {
   }
 
   if (mode === 'move-node' || mode === 'resize') {
+    if (mode === 'move-node') {
+      const dx = Math.abs(wp.x - ix.startWX);
+      const dy = Math.abs(wp.y - ix.startWY);
+      if (dx < 2 && dy < 2 && ix.wasSelected && selection.size === 1) {
+        const node = nodes.find(n => n.id === [...selection][0]);
+        if (node && node.type !== 'image') {
+          openTextEditor(node);
+          return;
+        }
+      }
+    }
     scheduleSave(); return;
   }
 
@@ -1106,21 +1613,27 @@ canvas.addEventListener('pointerup', e => {
     const node = addNode(type, nx, ny, nw, nh);
     selection.clear(); selection.add(node.id);
     render();
-    if (type==='text') openTextEditor(node);
+    if (type !== 'image') openTextEditor(node);
+    setTool('select');
     return;
   }
 
   if (mode === 'draw-edge') {
     ix.preview?.remove(); ix.preview = null;
     document.getElementById('snap-ring')?.remove();
-    const dist = Math.hypot(wp.x-ix.edgeX1, wp.y-ix.edgeY1);
-    if (dist < 10) return;
+    const distPx = Math.hypot(sp.x - ix.startSX, sp.y - ix.startSY);
+    if (distPx < 6) {
+      ix.snapTarget = null;
+      return;
+    }
     pushHistory();
     const type = activeTool === 'curve' ? 'curved' : 'straight';
     let toId=null, toAnchor=null;
     if (ix.snapTarget) { toId=ix.snapTarget.nodeId; toAnchor=ix.snapTarget.anchor; }
     addEdge(type, ix.edgeX1, ix.edgeY1, wp.x, wp.y, ix.edgeFromId, ix.edgeFromAnchor, toId, toAnchor);
+    ix.snapTarget = null;
     render();
+    setTool('select');
     return;
   }
 
@@ -1165,6 +1678,15 @@ canvas.addEventListener('dblclick', e => {
 // Right click: context menu
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
+  if (ix.mode === 'draw-shape' || ix.mode === 'draw-edge' || ix.mode === 'rubber-band') {
+    const canceledMode = ix.mode;
+    ix.preview?.remove();
+    ix.preview = null;
+    ix.mode = 'idle';
+    document.getElementById('snap-ring')?.remove();
+    ix.snapTarget = null;
+    if (canceledMode === 'draw-edge') setTool('select');
+  }
   const ng = e.target.closest('.node-group');
   const eg = e.target.closest('.edge-group');
   if (ng) {
@@ -1194,6 +1716,7 @@ canvas.addEventListener('wheel', e => {
 // KEYBOARD
 // ═══════════════════════════════════════════
 document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('#text-editor')) return;
   if (e.target === textEditor) return;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
@@ -1206,7 +1729,8 @@ document.addEventListener('keydown', e => {
   if (e.key==='Escape') {
     ix.preview?.remove(); ix.preview=null;
     document.getElementById('snap-ring')?.remove();
-    document.getElementById('layer-overlay').innerHTML='';
+    const overlay = document.getElementById('layer-overlay');
+    if (overlay) overlay.innerHTML='';
     ix.mode='idle'; selection.clear(); render();
     return;
   }
@@ -1326,15 +1850,31 @@ document.addEventListener('mousedown', e => {
 // ═══════════════════════════════════════════
 function buildPalette() {
   const container = document.getElementById('color-palette');
+  if (!container) return;
+  container.innerHTML = '';
   for (const color of PALETTE) {
     const s = document.createElement('div');
     s.className = 'swatch' + (color===activeFill?' active':'');
-    if (color === '#1e1b3a') s.style.border = '2px solid rgba(139,92,246,0.3)';
     s.setAttribute('data-color', color);
     s.style.background = color;
-    if (color === PALETTE[PALETTE.length-1]) s.style.border = '2px solid #2a2d3e';
+    if (isLightHexColor(color)) s.style.border = '2px solid rgba(15,23,42,0.35)';
     s.title = color;
     s.addEventListener('click', () => setFill(color));
+    container.appendChild(s);
+  }
+}
+
+function buildBackgroundPalette() {
+  const container = document.getElementById('bg-theme-palette');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const theme of BACKGROUND_THEMES) {
+    const s = document.createElement('div');
+    s.className = 'bg-swatch' + (theme.id===activeThemeId?' active':'');
+    s.setAttribute('data-theme', theme.id);
+    s.style.background = theme.preview;
+    s.title = `Background: ${theme.name}`;
+    s.addEventListener('click', () => applyBackgroundTheme(theme.id));
     container.appendChild(s);
   }
 }
@@ -1347,6 +1887,119 @@ document.querySelectorAll('.tb-btn[data-tool]').forEach(btn => {
 document.getElementById('tool-image').addEventListener('click', e => {
   if (activeTool !== 'image') return; // setTool handles switching, don't re-trigger
 });
+
+document.getElementById('tool-export').addEventListener('click', () => {
+  saveCurrentMap();
+  const exportFormat = {
+    type: 'BrainscapeData',
+    version: 1,
+    maps: maps,
+    activeMapId: activeMapId,
+    mapIdCtr: mapIdCtr,
+    activeThemeId: activeThemeId
+  };
+  const data = JSON.stringify(exportFormat, null, 2);
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = `brainmap_export_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+document.getElementById('tool-import').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none'; // Keep it invisible
+  
+  // Append to body so the browser allows the file picker to open
+  document.body.appendChild(input);
+
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) {
+      document.body.removeChild(input);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        console.log("Imported data:", d);
+        
+        let loadedMaps = null;
+        let loadedActiveMapId = null;
+        let loadedMapIdCtr = 1;
+        let loadedThemeId = activeThemeId;
+
+        // 1. New structured format
+        if (d && d.type === 'BrainscapeData' && Array.isArray(d.maps)) {
+          loadedMaps = d.maps.length > 0 ? d.maps : [{id: 'map1', name: 'Map 1', nodes: [], edges: []}];
+          loadedActiveMapId = d.activeMapId || loadedMaps[0].id;
+          loadedMapIdCtr = d.mapIdCtr || 1;
+          loadedThemeId = d.activeThemeId || loadedThemeId;
+        } 
+        // 2. Direct array (previous quick export)
+        else if (Array.isArray(d)) {
+          loadedMaps = d.length > 0 ? d : [{id: 'map1', name: 'Map 1', nodes: [], edges: []}];
+          // Ensure they have ids
+          if (!loadedMaps[0].id) loadedMaps[0].id = 'map1';
+          loadedActiveMapId = loadedMaps[0].id;
+        } 
+        // 3. Raw localStorage dump ({maps, activeMapId})
+        else if (d && Array.isArray(d.maps)) {
+          loadedMaps = d.maps.length > 0 ? d.maps : [{id: 'map1', name: 'Map 1', nodes: [], edges: []}];
+          loadedActiveMapId = d.activeMapId || loadedMaps[0].id;
+          loadedMapIdCtr = d.mapIdCtr || 1;
+          loadedThemeId = d.activeThemeId || loadedThemeId;
+        }
+        // 4. Single older format ({ nodes, edges })
+        else if (d && (Array.isArray(d.nodes) || Array.isArray(d.edges))) {
+          loadedMaps = [{
+            id: d.id || 'map1', 
+            name: d.name || 'Imported Map', 
+            nodes: Array.isArray(d.nodes) ? d.nodes : [], 
+            edges: Array.isArray(d.edges) ? d.edges : [], 
+            vp: d.vp || {x:0, y:0, s:1}
+          }];
+          loadedActiveMapId = loadedMaps[0].id;
+        } 
+        else {
+           throw new Error("Unrecognized JSON map format structure.");
+        }
+
+        // Apply
+        maps = loadedMaps;
+        activeMapId = loadedActiveMapId;
+        mapIdCtr = loadedMapIdCtr;
+        activeThemeId = loadedThemeId;
+        applyBackgroundTheme(activeThemeId, true);
+
+        const mapToLoad = currentMap() || maps[0];
+        if (!mapToLoad) {
+           throw new Error("Could not initialize map from data.");
+        }
+        loadMapData(mapToLoad);
+        renderTabs();
+        render();
+        scheduleSave();
+        
+      } catch (err) {
+        console.error("Import error:", err);
+        alert('File could not be read or is not valid JSON. Error: ' + err.message);
+      }
+      document.body.removeChild(input);
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+});
+
 canvas.addEventListener('pointerdown', e => {
   if (activeTool !== 'image' || e.button !== 0) return;
   if (e.target.closest('.node-group') || e.target.closest('.edge-group')) return;
@@ -1377,9 +2030,11 @@ canvas.addEventListener('pointerdown', e => {
 // INIT
 // ═══════════════════════════════════════════
 buildPalette();
+buildBackgroundPalette();
 setTool('select');
 
 if (!loadFromStorage()) {
+  applyBackgroundTheme(activeThemeId, true);
   // Welcome state
   const [dw, dh] = DEFAULT_SIZE.rect;
   const r = svgRect();
@@ -1399,5 +2054,6 @@ pushHistory();
 render();
 canvas.focus();
 </script>
-</body>
-</html>
+
+
+</body></html>
