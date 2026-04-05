@@ -653,9 +653,6 @@ function hintColorForNode(node) {
   return isLightHexColor(node.fill) ? 'rgba(15,23,42,0.4)' : 'rgba(255,255,255,0.22)';
 }
 
-function borderColorForNode(node) {
-  return '#ffffff';
-}
 
 // ═══════════════════════════════════════════
 // HISTORY
@@ -676,10 +673,8 @@ function applySnapshot(s) {
   selection.clear();
   _nodeRenderCache.clear();
   _edgeRenderCache.clear();
-  const ln = layerNodesEl;
-  const le = layerEdgesEl;
-  if (ln) ln.innerHTML = '';
-  if (le) le.innerHTML = '';
+  if (layerNodesEl) layerNodesEl.innerHTML = '';
+  if (layerEdgesEl) layerEdgesEl.innerHTML = '';
   render();
 }
 
@@ -724,11 +719,8 @@ function loadMapData(m) {
     ...edges.map(e => parseInt(e.id.slice(2)) + 1)
   );
   selection.clear();
-  
-  const layerNodes = layerNodesEl;
-  const layerEdges = layerEdgesEl;
-  if (layerNodes) layerNodes.innerHTML = '';
-  if (layerEdges) layerEdges.innerHTML = '';
+  if (layerNodesEl) layerNodesEl.innerHTML = '';
+  if (layerEdgesEl) layerEdgesEl.innerHTML = '';
 }
 
 function switchMap(id) {
@@ -903,7 +895,7 @@ function renderNode(node) {
   if (!layer) return;
   // Hash-based dirty check — skip if nothing that affects appearance has changed
   const _isSel = selection.has(node.id);
-  const _hash = `${node.x},${node.y},${node.w},${node.h},${node.type},${node.fill||''},${node.text||''},${node.fontSize||''},${node.bold?1:0},${node.italic?1:0},${node.imageId||''},${_isSel?1:0}`;
+  const _hash = `${node.x},${node.y},${node.w},${node.h},${node.type},${node.fill||''},${node.text||''},${node.fontSize||''},${node.bold?1:0},${node.italic?1:0},${node.imageId||''},${node.noBorder?1:0},${_isSel?1:0}`;
   const _existingEl = document.getElementById('n-' + node.id);
   if (_existingEl && _nodeRenderCache.get(node.id) === _hash) return;
   _nodeRenderCache.set(node.id, _hash);
@@ -915,23 +907,22 @@ function renderNode(node) {
   g.innerHTML = '';
   const { type, x, y, w, h, text='' } = node;
   const fill = node.fill ?? (type === 'text' ? '#130d21' : '#4d7ef7');
-  const isSel = selection.has(node.id);
+  const isSel = _isSel;
   const labelColor = labelColorForNode(node);
   const hintColor = hintColorForNode(node);
-  const border = borderColorForNode(node);
 
   // Main shape
   let shape;
   if (type === 'rect' || type === 'text') {
     shape = el('rect', { class:'node-shape', x, y, width:w, height:h, rx: type==='rect'?10:5,
       fill,
-      stroke: border });
+      stroke: '#ffffff' });
   } else if (type === 'circle') {
     shape = el('ellipse', { class:'node-shape', cx:x+w/2, cy:y+h/2, rx:w/2, ry:h/2,
-      fill, stroke:border });
+      fill, stroke:'#ffffff' });
   } else if (type === 'diamond') {
     const pts = `${x+w/2},${y} ${x+w},${y+h/2} ${x+w/2},${y+h} ${x},${y+h/2}`;
-    shape = el('polygon', { class:'node-shape', points:pts, fill, stroke:border });
+    shape = el('polygon', { class:'node-shape', points:pts, fill, stroke:'#ffffff' });
   } else if (type === 'image') {
     const defs = el('defs');
     const clip = el('clipPath', { id:'clip-'+node.id });
@@ -943,11 +934,11 @@ function renderNode(node) {
   }
   g.appendChild(shape);
 
-  if (type === 'image') {
+  if (type === 'image' && !node.noBorder) {
     g.appendChild(el('rect', {
       x, y, width:w, height:h, rx:8,
       fill:'none',
-      stroke:border,
+      stroke:'#ffffff',
       'stroke-width':2,
       'pointer-events':'none'
     }));
@@ -959,8 +950,7 @@ function renderNode(node) {
     const fw = node.bold ? 'bold' : 'normal';
     const fSt = node.italic ? 'italic' : 'normal';
     
-    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-    setAttrs(fo, { x, y, width:w, height:h, style:'pointer-events:none;' });
+    const fo = el('foreignObject', { x, y, width:w, height:h, style:'pointer-events:none;' });
     
     // Create an HTML div for text
     const div = document.createElement('div');
@@ -1032,11 +1022,10 @@ function renderEdge(edge) {
     layer.appendChild(g);
   }
   g.innerHTML = '';
-  const isSel = _isSel;
   const { x1, y1, x2, y2 } = _r;
   const stroke = edge.color || '#ffffff';
   const sw = edge.strokeWidth == null || edge.strokeWidth === 1.5 ? 2.8 : edge.strokeWidth;
-  const marker = isSel ? 'url(#ah-sel)' : 'url(#ah-def)';
+  const marker = _isSel ? 'url(#ah-sel)' : 'url(#ah-def)';
 
   let d, cp = null;
   if (edge.type === 'straight') {
@@ -1051,17 +1040,17 @@ function renderEdge(edge) {
   g.appendChild(el('path', { class:'edge-hit', d }));
   // Visible path
   g.appendChild(el('path', { class:'edge-vis', d, stroke, 'stroke-width':sw,
-    'marker-end':marker, 'stroke-opacity': isSel?1:0.75 }));
+    'marker-end':marker, 'stroke-opacity': _isSel?1:0.75 }));
 
   // Control-point handle for selected curves
-  if (edge.type === 'curved' && isSel && cp) {
+  if (edge.type === 'curved' && _isSel && cp) {
     g.appendChild(el('line', { class:'edge-ctrl-line', x1, y1, x2:cp.cx, y2:cp.cy }));
     g.appendChild(el('line', { class:'edge-ctrl-line', x1:x2, y1:y2, x2:cp.cx, y2:cp.cy }));
     g.appendChild(el('circle', { class:'edge-ctrl-handle', cx:cp.cx, cy:cp.cy, r:6, 'data-eid':edge.id }));
   }
 
   // Endpoint drag handles when selected
-  if (isSel) {
+  if (_isSel) {
     g.appendChild(el('circle', { class:'edge-ctrl-handle', cx:x1, cy:y1, r:5, 'data-eid':edge.id, 'data-ep':'x1' }));
     g.appendChild(el('circle', { class:'edge-ctrl-handle', cx:x2, cy:y2, r:5, 'data-eid':edge.id, 'data-ep':'x2' }));
   }
@@ -1080,9 +1069,10 @@ function updateViewport() {
   }
 }
 
+const TOOL_NAMES = { select:'Select', rect:'Rectangle', circle:'Circle', diamond:'Diamond', text:'Text', arrow:'Arrow', curve:'Curve', image:'Image' };
+
 function updateStatusBar() {
-  const names = { select:'Select', rect:'Rectangle', circle:'Circle', diamond:'Diamond', text:'Text', arrow:'Arrow', curve:'Curve', image:'Image' };
-  if (sbToolEl) sbToolEl.textContent = names[activeTool] || activeTool;
+  if (sbToolEl) sbToolEl.textContent = TOOL_NAMES[activeTool] || activeTool;
   if (sbZoomEl) sbZoomEl.textContent = Math.round(vp.s*100) + '%';
   const ss = selection.size;
   if (sbSelEl) sbSelEl.textContent = ss > 0 ? `${ss} selected` : '';
@@ -1950,7 +1940,7 @@ function scaleImageToCanvasBounds(width, height, maxW=500, maxH=400) {
 }
 
 function placeImageNodeFromDataUrl(dataUrl, center, options = {}) {
-  const { selectNode = false, switchToolToSelect = false } = options;
+  const { selectNode = false, switchToolToSelect = false, noBorder = false } = options;
   const img = new Image();
   img.onload = () => {
     const size = scaleImageToCanvasBounds(img.width, img.height);
@@ -1959,7 +1949,8 @@ function placeImageNodeFromDataUrl(dataUrl, center, options = {}) {
     storeImage(imageId, dataUrl);
     const node = addNode('image', center.x - size.w / 2, center.y - size.h / 2, size.w, size.h, {
       imageId,
-      fill: 'transparent'
+      fill: 'transparent',
+      noBorder
     });
     if (selectNode) {
       selection.clear();
@@ -1986,7 +1977,7 @@ document.addEventListener('paste', e => {
       const reader = new FileReader();
       reader.onload = ev => {
         const c = viewCenter();
-        placeImageNodeFromDataUrl(ev.target.result, c, { selectNode: true });
+        placeImageNodeFromDataUrl(ev.target.result, c, { selectNode: true, noBorder: true });
       };
       reader.readAsDataURL(file);
       return;
@@ -2122,8 +2113,6 @@ document.getElementById('tool-import').addEventListener('click', () => {
     reader.onload = ev => {
       try {
         const d = JSON.parse(ev.target.result);
-        console.log("Imported data:", d);
-        
         let loadedMaps = null;
         let loadedActiveMapId = null;
         let loadedMapIdCtr = 1;
