@@ -192,7 +192,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   outline: none; overflow: hidden; min-width: 60px; min-height: 24px;
   text-align: left; line-height: 1.5;
   box-shadow: 0 0 28px rgba(139,92,246,0.22), 0 8px 40px rgba(0,0,0,0.7);
-  display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start;
+  display: block;
   white-space: pre-wrap; word-break: break-word;
 }
 
@@ -951,7 +951,7 @@ function renderNode(node) {
     const div = document.createElement('div');
     div.style.cssText = `
       width: 100%; height: 100%;
-      display: flex; align-items: flex-start; justify-content: flex-start;
+      display: block;
       text-align: left;
       font-size: ${fs}px; font-weight: ${fw}; font-style: ${fSt};
       color: ${labelColor};
@@ -1256,13 +1256,32 @@ function openTextEditor(node) {
   sel.addRange(range);
 }
 
+function normalizeEditorHTML(html) {
+  // Chrome sometimes wraps lines in <div> elements in contenteditable.
+  // Normalize these to <br> so line breaks render correctly everywhere.
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  let result = '';
+  const children = Array.from(tmp.childNodes);
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (child.nodeName === 'DIV' || child.nodeName === 'P') {
+      if (i > 0) result += '<br>';
+      result += child.innerHTML;
+    } else {
+      result += child.nodeType === Node.TEXT_NODE ? child.textContent : child.outerHTML;
+    }
+  }
+  return result;
+}
+
 function closeTextEditor(commit=true) {
   if (!editingId) return;
   if (commit) {
     pushHistory();
     const node = nodes.find(n => n.id===editingId);
     if (node) {
-      node.text = textEditor.innerHTML;
+      node.text = normalizeEditorHTML(textEditor.innerHTML);
       if (node.type === 'text' && (!node.fill || node.fill === '#4d7ef7' || node.fill === '#9FAAF3')) {
         node.fill = '#130d21';
       }
@@ -1380,10 +1399,15 @@ textEditor.addEventListener('keydown', e => {
   }
 });
 textEditor.addEventListener('paste', e => {
-  // Try to prevent massive formatting dumps, paste as plain text
+  // Paste as plain text, converting newlines to <br>
   e.preventDefault();
   const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-  document.execCommand('insertText', false, text);
+  const html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+  document.execCommand('insertHTML', false, html);
 });
 textEditor.addEventListener('input', () => {
   textEditor.style.height = 'auto';
